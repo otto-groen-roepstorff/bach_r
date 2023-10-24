@@ -126,18 +126,6 @@ ggplot(long_submodels, aes(x = X.axis, color = epsilon, fill = variable)) +
 
 
 
-#Simulating same data but with more epsilons for plotting functional curve
-epsilon_model_functional_plot <- Fmixture_model(1, 10000, 100, rexp, dexp, 0.1)
-
-est_functionals <- Fmixfunctionals(epsilon_model_functional_plot$all_models, functional = moment, 2)
-
-ggplot(est_functionals, aes(x = epsilon, y = functionals)) +
-  geom_line(linetype = "solid") + theme_classic() +
-  labs(title = "Functional values along the path",
-       x = "Epsilon",
-       y = "Functional") + ylim(c(0.00044, 0.00052))
-
-
 dists <- epsilon_model_functional_plot$all_models[-c(1,103,104)]
 funcs <- est_functionals$functionals
 
@@ -150,6 +138,20 @@ slope <- (est_functionals[nrow(est_functionals),2] - est_functionals[nrow(est_fu
   (est_functionals[nrow(est_functionals),1] - est_functionals[nrow(est_functionals) - 1,1])
 
 directional_derivative <- est_functionals$epsilon * slope
+
+#Simulating same data but with more epsilons for plotting functional curve
+epsilon_model_functional_plot <- Fmixture_model(1, 10000, 100, rexp, dexp, 0.1)
+
+est_functionals <- Fmixfunctionals(epsilon_model_functional_plot$all_models, functional = moment, 2)
+
+ggplot(est_functionals, aes(x = epsilon, y = functionals)) +
+  geom_line(linetype = "solid") + theme_classic() +
+  labs(title = "Functional values along the path",
+       x = "Epsilon",
+       y = "Functional") + ylim(c(0.00044, 0.00052)) + geom_abline(intercept = funcs[101] - slope, slope = slope)
+
+
+
 
 
 
