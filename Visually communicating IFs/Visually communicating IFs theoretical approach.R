@@ -44,7 +44,7 @@ submodels_long$epsilon <- rep(epsilon, each = length(sim_data))
 
 
 #Plotting densities stratified on epsilon value
-ggplot(submodels_long, aes(x = X.axis, color = epsilon, fill = variable)) +
+density_plot <- ggplot(submodels_long, aes(x = X.axis, color = epsilon, fill = variable)) +
   geom_line(aes(y = value), linetype = "solid") +
   scale_color_gradient(low = "red", high = "steelblue", name = "Epsilon value") +  # Adjust low and high colors as needed
   theme_bw() +
@@ -75,7 +75,7 @@ slope <- 3/10
 
 
 #Plotting 
-ggplot(df_functionals, aes(x = epsilon, y = functionals)) +
+functional_plot <- ggplot(df_functionals, aes(x = epsilon, y = functionals)) +
   geom_line(linetype = "solid") + 
   geom_segment(aes(x = 0, xend = 1, y = functionals[101] - slope, yend = functionals[101]), linetype = 'dashed') +
   geom_text(aes(x = 0.1, y = 0.44, label = '1-step estimator')) +
@@ -85,6 +85,14 @@ ggplot(df_functionals, aes(x = epsilon, y = functionals)) +
   labs(title = "Functional values along the path",
        x = "Epsilon",
        y = "Functional") + ylim(c(0.4,0.8))
+
+
+#Saving plots
+wd <- getwd()
+save_wd <- paste0(wd,'/Visually communicating IFs')
+
+ggsave(paste0(save_wd,'/density_plot.png'), plot = density_plot, width = 6, height = 4, dpi = 300)
+ggsave(paste0(save_wd,'/functional_plot.png'), plot = functional_plot, width = 6, height = 4, dpi = 300)
 
 
 
