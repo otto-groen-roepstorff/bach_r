@@ -25,7 +25,7 @@ df$status <- df$glau_eye_single == 1
 #Creating centered variables
 df$age_at_surg_center <- scale(df$age_at_surg, center = TRUE, scale = FALSE)
 df$axis_lenght_center <- scale(df$axis_lenght, center = TRUE, scale = FALSE)
-df$six_month_or_young <- df$age_at_surg < 6*30
+df$young <- df$age_at_surg < 6*30
 
 
 
@@ -58,7 +58,7 @@ fit_ster_reg <- coxph(Surv(time,status) ~ factor(iol_single) + age_at_surg + num
 #Fitting models for plotting
 ster_regi_surv <- survfit(Surv(time, status) ~ factor(ster_regi), data = df)
 iol_single_surv <- survfit(Surv(time, status) ~ factor(iol_single), data = df)
-six_month_or_young_surv <- survfit(Surv(time, status) ~ factor(six_month_or_young), data = df)
+young_surv <- survfit(Surv(time, status) ~ factor(young), data = df)
 
 
 ################################################################
@@ -67,7 +67,7 @@ six_month_or_young_surv <- survfit(Surv(time, status) ~ factor(six_month_or_youn
 
 #Kaplan Meier curve with ster_regi
 KM_ster_regi <- ggsurvplot(ster_regi_surv,
-                           pval = TRUE, conf.int = F,
+                           pval = FALSE, conf.int = F,
                            risk.table.col = "strata", # Change risk table color by groups
                            ggtheme = theme_bw(), # Change ggplot2 theme
                            xlim = c(0,3000),
@@ -79,10 +79,10 @@ KM_ster_regi <- ggsurvplot(ster_regi_surv,
 
 #Kaplan Meier curve with iol_single
 KM_iol_single <- ggsurvplot(iol_single_surv,
-                           pval = TRUE, conf.int = F,
+                           pval = FALSE, conf.int = F,
                            risk.table.col = "strata", # Change risk table color by groups
                            ggtheme = theme_bw(), # Change ggplot2 theme
-                           xlim = c(0,5000),
+                           xlim = c(0,3000),
                            ylim = c(0.0, 1))
 
 #We notice that introducing an artifical lens seem to increase survival probability.
@@ -90,8 +90,8 @@ KM_iol_single <- ggsurvplot(iol_single_surv,
 
 
 #Kaplan Meier curve with six_months_or_young
-KM_six_month_or_young <- ggsurvplot(six_month_or_young_surv,
-                           pval = TRUE, conf.int = F,
+KM_young <- ggsurvplot(young_surv,
+                           pval = FALSE, conf.int = F,
                            risk.table.col = "strata", # Change risk table color by groups
                            ggtheme = theme_bw(), # Change ggplot2 theme
                            xlim = c(0,3000),
@@ -102,15 +102,15 @@ KM_six_month_or_young <- ggsurvplot(six_month_or_young_surv,
 
 KM_plots <- list('KM_ster_regi' = KM_ster_regi, 
                  'KM_iol_single' = KM_iol_single, 
-                 'KM_six_month_or_young' = KM_six_month_or_young)
+                 'KM_young' = KM_young)
 
-arrange_ggsurvplots(KM_plots, ncol = 2, nrow = 2, risk.table.height = 0.4)
+arrange_ggsurvplots(KM_plots, ncol = 3, nrow = 1)
 
 ################################################################
 #                       Cumulative hazard
 ################################################################
 #ster_regi
-CH_ster_regi <- ggsurvplot(cox_ster_regi,
+CH_ster_regi <- ggsurvplot(ster_regi_surv,
                                         risk.table.col = "strata", # Change risk table color by groups
                                         ggtheme = theme_bw(), # Change ggplot2 theme
                                         fun = "cumhaz",
@@ -119,15 +119,15 @@ CH_ster_regi <- ggsurvplot(cox_ster_regi,
 #Once again the crossing of the cumulative hazard rates indicates a violation of constant proportional hazards
 
 #iol_single
-CH_iol_single <- ggsurvplot(cox_iol_single,
+CH_iol_single <- ggsurvplot(iol_single_surv,
                                risk.table.col = "strata", # Change risk table color by groups
                                ggtheme = theme_bw(), # Change ggplot2 theme
                                fun = "cumhaz",
                                xlim = c(0,3000),
                                ylim = c(0,0.2))
 
-#six_month_or_young
-CH_six_month_or_young <- ggsurvplot(cox_six_month_or_young,
+#young
+CH_young <- ggsurvplot(young_surv,
                                         risk.table.col = "strata", # Change risk table color by groups
                                         ggtheme = theme_bw(), # Change ggplot2 theme
                                         fun = "cumhaz",
@@ -137,7 +137,7 @@ CH_six_month_or_young <- ggsurvplot(cox_six_month_or_young,
 
 CH_plots <- list('CH_cox_ster_regi' = CH_ster_regi, 
                  'CH_cox_iol_single' = CH_iol_single, 
-                 'CH_cox_six_month_or_young' = CH_six_month_or_young)
+                 'CH_cox_young' = CH_young)
 arrange_ggsurvplots(CH_plots, ncol = 2, nrow = 2, risk.table.height = 0.4)
 
 
@@ -148,17 +148,21 @@ arrange_ggsurvplots(CH_plots, ncol = 2, nrow = 2, risk.table.height = 0.4)
 ################################################################
 
 #ster_regi
-fit_aalen_ster_regi = aalen(Surv(time, glau_eye_single==1) ~ factor(ster_regi), data=df)
+fit_aalen_ster_regi = aalen(Surv(time,status) ~ factor(ster_regi) + factor(iol_single) + factor(young), max.time = 1800, data=df)
+summary(fit_aalen_ster_regi)
+
++ factor(iol_single) +  + axis_lenght + num_re_op
+
 par(mfrow=c(2,2))
-plot(cox_ster_regi, fun = "cumhaz", col = c("steelblue", "red"), xlim = c(0,3000), xlab = 'Time', ylab = 'Cumulative hazard')
+plot(ster_regi_surv, fun = "cumhaz", col = c("steelblue", "red"), xlim = c(0,3000), xlab = 'Time', ylab = 'Cumulative hazard')
 legend("bottomright", legend = c("ster_regi0", "ster_regi1"), col = c("steelblue", "red"), lty=1)
-plot(fit_aalen_ster_regi, xlim = c(0,3000))
+plot(fit_aalen_ster_regi)
 
 
 #iol_single
 fit_aalen_iol_single = aalen(Surv(time, glau_eye_single==1) ~ factor(iol_single), data=df)
 par(mfrow=c(2,2))
-plot(cox_iol_single, fun = "cumhaz", col = c("steelblue", "red"), xlim = c(0,3000), xlab = 'Time', ylab = 'Cumulative hazard')
+plot(iol_single_surv, fun = "cumhaz", col = c("steelblue", "red"), xlim = c(0,3000), xlab = 'Time', ylab = 'Cumulative hazard')
 legend("bottomright", legend = c("iol_single0", "iol_single1"), col = c("steelblue", "red"), lty=1)
 plot(fit_aalen_iol_single, xlim = c(0,3000))
 
@@ -169,12 +173,22 @@ plot(fit_aalen_iol_single, xlim = c(0,3000))
 ################################################################
 #       Lin et al. and Wei plot
 ################################################################
-#Fits cox model
+#Fits cox model unweighted
 cox_model <- cox.aalen(Surv(time, glau_eye_single==1) ~ prop(ster_regi) + prop(age_at_surg_center) + prop(iol_single) + prop(axis_lenght_center) + prop(num_re_op), 
                        data = df)
 summary(cox_model)
 par(mfrow=c(2,3))
 plot(cox_model,score=1)
+
+
+#Fits cox model weighted
+cox_model_w <- cox.aalen(Surv(time, glau_eye_single==1) ~ prop(ster_regi) + prop(age_at_surg_center) + prop(iol_single) + prop(axis_lenght_center) + prop(num_re_op), 
+                       weighted.test = 1, data = df)
+summary(cox_model_w)
+par(mfrow=c(2,3))
+plot(cox_model_w,score=1)
+
+
 
 
 ################################################################
