@@ -111,7 +111,11 @@ Fmixfunctionals <- function(Fmixture_model_all_models, functional, ...){
 ############################################################
 #             Using functions to make plots and calculations
 ############################################################
-epsilon_model <- Fmixture_model(1, 10000, 5, rnorm, dnorm, 1, 1)
+epsilon_model <- Fmixture_model(1, 10000, 5, rnorm, dnorm, 0, 1)
+
+all_submodels <- epsilon_model$all_models
+
+
 long_submodels <- epsilon_model$submodels_long
 
 #Plotting
@@ -122,8 +126,22 @@ ggplot(long_submodels, aes(x = X.axis, color = epsilon, fill = variable)) +
   theme_classic() +
   labs(title = "A single path formed from convex combinations of distributions",
        x = "Z",
-       y = "Density")+ xlim(c(0, 2)) + ylim(c(0.2, 0.45))
+       y = "Density")+ xlim(c(-1, 1)) + ylim(c(0.22, 0.42))
 
+
+
+
+
+
+
+#Simulating same data but with more epsilons for plotting functional curve
+epsilon_model_functional_plot <- Fmixture_model(1, 100000, 100, rnorm, dnorm, 0, 1)
+
+all_submodels_functional_plot <- epsilon_model_functional_plot$all_models
+sum(all_submodels_functional_plot$Theoretical.dist^2)
+
+
+est_functionals <- Fmixfunctionals(epsilon_model_functional_plot$all_models, functional = sum)
 
 
 dists <- epsilon_model_functional_plot$all_models[-c(1,103,104)]
@@ -134,10 +152,6 @@ gateau_deriv_1 <- -mean((dists$Epsilon_1 - funcs[101]))
 slope <- (est_functionals[nrow(est_functionals),2] - est_functionals[nrow(est_functionals) - 1,2])/
   (est_functionals[nrow(est_functionals),1] - est_functionals[nrow(est_functionals) - 1,1])
 
-#Simulating same data but with more epsilons for plotting functional curve
-epsilon_model_functional_plot <- Fmixture_model(1, 10000, 100, rexp, dexp, 0.1)
-
-est_functionals <- Fmixfunctionals(epsilon_model_functional_plot$all_models, functional = moment, 1)
 
 ggplot(est_functionals, aes(x = epsilon, y = functionals)) +
   geom_line(linetype = "solid") + theme_classic() +
