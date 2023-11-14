@@ -1,0 +1,24 @@
+name|type|data|command|depend|seed|path|time|size|bytes|format|repository|iteration|parent|children|seconds|warnings|error
+conditional_censoring_cox|function|d9454450ec0dc847|||||||||||||||
+conditional_censoring_not_cox|function|e4cd40ed1b2fb58f|||||||||||||||
+data|stem|9c23ba20a0555de2|741d6a3f95f9f783|92f96ee6a786b311|1588979285||t19675.4221757483s|f49641e07797fa58|231138|rds|local|vector|||0.07||
+generate_censoring_times|function|71f2cc97d3d9a3f6|||||||||||||||
+generate_random|function|6e0dcdd5f5a114b8|||||||||||||||
+generate_survival_data|function|f0530ad67f6923f3|||||||||||||||
+generate_survival_times|function|a65e5e99f6aa1cf0|||||||||||||||
+get_a_values|function|2eeed668ec7cd161|||||||||||||||
+get_row_length|function|33d090791fee9983|||||||||||||||
+get_t_values|function|b51f118370240ae8|||||||||||||||
+get_uni_a0|function|4b2539e479b5affe|||||||||||||||
+get_uni_a1|function|ce556939e126a459|||||||||||||||
+get_x_values|function|4318251c8edcd687|||||||||||||||
+model|stem||ae83bc723fe2997c|740e463badfabc4e|1816327236||t19675.4203038648s||0|rds|local|vector|||0||objekt y blev ikke fundet
+n_sim|stem|8cd2089d1646d3fb|056581ba14330799|ef46db3751d8e999|-188912214||t19675.4318290022s|c9aaea90a821e608|53|rds|local|vector|||0||
+quantile_surv_generate_cox|function|d9454450ec0dc847|||||||||||||||
+quantile_surv_generate_not_cox|function|e4cd40ed1b2fb58f|||||||||||||||
+surv_cox_cens_cox|stem|9b3d178e1d46665c|0c4fe1a6a15a9b34|bbf2144c17cad1f5|1550088136||t19675.4318306322s|51cb5922a9673458|17465|rds|local|vector|||0.03||
+surv_cox_cens_not_cox|stem|710b39b6fa1c5453|1d7b75d708a097da|bbf2144c17cad1f5|-1245814089||t19675.4318299967s|7b997e0668760249|16393|rds|local|vector|||0.06||
+surv_data|stem|a5e44be6332a9a35|741d6a3f95f9f783|92f96ee6a786b311|-1477739271||t19675.4227850791s|31381162695ba1fe|231176|rds|local|vector|||0.08||
+surv_not_cox_cens_cox|stem|9bf76d0e760aa772|218e9864d04ef6a4|bbf2144c17cad1f5|-379968527||t19675.4318309934s|e5b3e191667f914f|16382|rds|local|vector|||0.02||
+surv_not_cox_cens_not_cox|stem|fd9623457fa76eab|4f63da66067ab07f|bbf2144c17cad1f5|-696606284||t19675.4318315442s|fd08c192f9293f1d|17836|rds|local|vector|||0.01||
+x_vals|stem|118c291404f6f2ec|6c2112702e695b0e|ef46db3751d8e999|198572693||t19675.429187853s|2005da2f14a67e22|98|rds|local|vector|||0||

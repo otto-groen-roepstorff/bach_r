@@ -19,13 +19,34 @@ tar_source("R/functions.R")
 # Replace the target list below with your own:
 list(
   tar_target(
-    name = data,
-    command = generate_survival_data(n = 100,x_vals = (0:5),is_cox = T)
+    name = n_sim,
+    command = 1000
+  ),
+  tar_target(
+    name = x_vals,
+    command = (0:10)
+  ),
+  
+  tar_target(
+    name = surv_cox_cens_cox,
+    command = generate_survival_data(n = n_sim, x_vals = x_vals,surv_is_cox = T, cens_is_cox = T)
     # format = "feather" # efficient storage for large data frames
   ),
   tar_target(
-    name = model,
-    command = coefficients(lm(y ~ x, data = data))
+    name = surv_cox_cens_not_cox,
+    command = generate_survival_data(n = n_sim, x_vals = x_vals,surv_is_cox = T, cens_is_cox = F)
+    # format = "feather" # efficient storage for large data frames
+  ),
+  tar_target(
+    name = surv_not_cox_cens_cox,
+    command = generate_survival_data(n = n_sim, x_vals = x_vals,surv_is_cox = F, cens_is_cox = T)
+    # format = "feather" # efficient storage for large data frames
+  ),
+  tar_target(
+    name = surv_not_cox_cens_not_cox,
+    command = generate_survival_data(n = n_sim, x_vals = x_vals,surv_is_cox = F, cens_is_cox = F)
+    # format = "feather" # efficient storage for large data frames
   )
+  
 )
 
