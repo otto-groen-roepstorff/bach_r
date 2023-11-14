@@ -20,7 +20,7 @@ tar_source("R/functions.R")
 list(
   tar_target(
     name = data,
-    command = tibble(x = rnorm(100), y = rnorm(100))
+    command = generate_survival_data(n = 100,x_vals = (0:5),is_cox = T)
     # format = "feather" # efficient storage for large data frames
   ),
   tar_target(
@@ -28,3 +28,4 @@ list(
     command = coefficients(lm(y ~ x, data = data))
   )
 )
+
