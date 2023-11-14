@@ -35,11 +35,6 @@ conditional_censoring_cox <- function(q,b1 = 1,b2 = 1, a, x){                 #q
   (-log(1-q))/(exp(b1*a+b2*x))
 }
   
-  
-#  function(n,a,x, b1 = 1, b2 = 1){
-#  censoring_times <- rexp(n, rate = 1 + a*b1 + x*b2)
-#  return(censoring_times)
-#}
 
 conditional_censoring_not_cox <- function(q,b1 = 1,b2 = 1, a, x){                 #quantile function for h0
   (-log(1-q))/(exp(b1*a+b2*x^2))
@@ -125,31 +120,82 @@ generate_survival_times <- function(n,b1, b2, x_vals, is_cox = T){
   return(data_frame_storage)
 }
 
-
-generate_censoring_times <- function(data, is_cox = T, b1, b2){
-  n <- get_row_length(data)
-  a <- get_a_values(data)
-  x <- get_x_values(data)
-  if(is_cox){
-    censoring_times <- conditional_censoring_cox(n = n, a = a, x = x)
+generate_censoring_times <- function(n,b1, b2, x_vals, is_cox = T){
+  len_x <- length(x_vals)
+  n_corrected <- n-n%%len_x
+  data_frame_storage <- data.frame()
+  
+  for(x in x_vals){
+    randomness <- generate_random(n_corrected/len_x)
+    q_a0 <- get_uni_a0(randomness)
+    q_a1 <- get_uni_a1(randomness)
+    
+    if(is_cox){
+      a0_times <- conditional_censoring_cox(q_a0, 
+                                             b1 = b1, 
+                                             b2 = b2, 
+                                             a = 0, 
+                                             x = x)
+      
+      a1_times <- conditional_censoring_cox(q_a1, 
+                                             b1 = b1, 
+                                             b2 = b2, 
+                                             a = 1, 
+                                             x)
+    }
+    else{
+      a0_times <- conditional_censoring_not_cox(q_a0, 
+                                                 b1 = b1, 
+                                                 b2 = b2, 
+                                                 a = 0, 
+                                                 x)
+      a1_times <- conditional_censoring_not_cox(q_a1, 
+                                                 b1 = b1, 
+                                                 b2 = b2, 
+                                                 a = 1, 
+                                                 x)
+    }
+    
+    temp_df0 <- data.frame(t_true = a0_times, a = rep(0, length(a0_times)), x = x)
+    temp_df1 <- data.frame(t_true = a1_times, a = rep(1, length(a1_times)), x = x)
+    data_frame_storage <- rbind(data_frame_storage, temp_df1, temp_df0)
   }
-  else{
-    censoring_times <- conditional_censoring_not_cox()
-  }
-  return(censoring_times)
+  
+  surv_times <- get_t_values(data_frame_storage)
+  
+  return(surv_times)
 }
 
-generate_censoring_times(data)
 
 generate_survival_data <- function(n, x_vals, b1 = 1, b2 = 1, surv_is_cox = T, cens_is_cox = T){
-  survival_data <- generate_survival_times(n,b1 = b1, b2 = b2, x_vals = x_vals, is_cox = surv_is_cox)
-  censoring_times <- generate_censoring_times(data = survival_data, is_cox = cens_is_cox, b1 = b1, b2 = b2)
+  survival_data <- generate_survival_times(n = n,b1 = b1, b2 = b2, x_vals = x_vals, is_cox = surv_is_cox)
+  censoring_times <- generate_censoring_times(n = n,b1 = b1, b2 = b2, x_vals = x_vals, is_cox = cens_is_cox)
     has_been_censored <- get_t_values(survival_data) > censoring_times
   t_observed <- pmin(get_t_values(survival_data), censoring_times)
   full_data_set <- cbind(survival_data, censoring_times, t_observed, has_been_censored)
   return(full_data_set)
 }
 
-data <- generate_survival_data(100,x_vals = c(0,1,2,6, 7, 6), is_cox = T)
+
+#LEGACY CODE
 
 
+#generate_censoring_times <- function(data, is_cox = T, b1, b2){
+#  n <- get_row_length(data)
+#  a <- get_a_values(data)
+#  x <- get_x_values(data)
+#  if(is_cox){
+#    censoring_times <- conditional_censoring_cox(n = n, a = a, x = x)
+#  }
+#  else{
+#    censoring_times <- conditional_censoring_not_cox()
+#  }
+#  return(censoring_times)
+#}
+#
+
+
+#  conditional_censoring_cox <- function(n,a,x, b1 = 1, b2 = 1){
+#  censoring_times <- rexp(n, rate = 1 + a*b1 + x*b2)
+#  return(censoring_times)
+#}
