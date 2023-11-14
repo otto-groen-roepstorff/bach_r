@@ -2,6 +2,8 @@
 library(tidyverse)
 library(survival)
 library(timereg)
+library(dplyr)
+library(data.table)
 
 
 
@@ -95,6 +97,34 @@ generate_random <- function(n, prop = 1/2){
   uniformT1 <- uniformT[(floor(n*prop+1)):n]                  #data that does not follow cox-model
   return(list(A0 = uniformT0, A1 = uniformT1))
 }
+
+
+
+torben_generate_survival_times <- function(n, ba = 1, bx = 1, surv_is_cox = T, cens_is_cox = T, prop_a = 1/2){
+  
+  #Generating a's and x's
+  a <- rbinom(n, 1, prop_a)
+  x <- runif(n, -1, 1)
+  
+  if(surv_is_cox){
+    surv_t <- rexp(n, 1)/exp(ba*a + bx*x)
+  } else {
+    surv_t <- rexp(n, 1)/exp(ba*a + bx*x^3)
+  }
+  
+  
+  if(cens_is_cox){
+    cens_t <- rexp(n, 1)/exp(ba*a + bx*x)
+  } else {
+    cens_t <- rexp(n, 1)/exp(ba*a + bx*x^3)
+  }
+  t_obs <- pmin(surv_t, cens_t)
+  delta <- surv_t < cens_t
+  
+  return(data.frame(T_true = surv_t, C = cens_t, T_obs = t_obs, Status = delta, X = x, A = a))
+}
+
+
 
 
 
