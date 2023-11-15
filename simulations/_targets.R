@@ -5,6 +5,11 @@
 
 # Load packages required to define the pipeline:
 library(targets)
+library(tidyverse)
+library(survival)
+library(timereg)
+library(dplyr)
+library(data.table)
 # library(tarchetypes) # Load other packages as needed.
 
 # Set target options:
@@ -20,7 +25,7 @@ tar_source("R/functions.R")
 list(
   tar_target(
     name = n_sim,
-    command = 1000
+    command = 10000000
   ),
   tar_target(
     name = x_vals,
