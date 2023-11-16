@@ -1,10 +1,10 @@
-###Packages
-#library(targets)
-#library(tidyverse)
-#library(survival)
-#library(timereg)
-#library(dplyr)
-#library(data.table)
+####Packages----
+library(targets)
+library(tidyverse)
+library(survival)
+library(timereg)
+library(dplyr)
+library(data.table)
 
 
 
@@ -12,6 +12,7 @@
 #Get functions
 #Optimized for generation method
 ##############
+
 
 
 get_X_values <- function(data){
@@ -50,11 +51,11 @@ get_X_estimate <- function(model){
 }
 
 get_se_A_estimate <- function(model){
-  return(sqrt(mod$var[1,1]))
+  return(sqrt(model$var[1,1]))
 }
 
 get_se_X_estimate <- function(model){
-  return(sqrt(mod$var[2,2]))
+  return(sqrt(model$var[2,2]))
 }
 
 ####################
@@ -75,7 +76,7 @@ filter_on_x <- function(data, val){
 #####################
 
 
-generate_survival_data <- function(n, ba_t = 1, bx_t = 1, ba_c = 1, bx_c = 1, surv_is_cox = T, 
+generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), ba_c = log(2), bx_c = log(2), surv_is_cox = T, 
                                         cens_is_cox = T, prop_a = 1/2, 
                                         x_range = c(-1,1), x_cont = T, 
                                         x_vals = c(0,1)){
@@ -89,19 +90,15 @@ generate_survival_data <- function(n, ba_t = 1, bx_t = 1, ba_c = 1, bx_c = 1, su
     x <- sample(x_vals, n, replace = T)
   }
   #Generating survival times
-  if(surv_is_cox){
-    denom_surv <- exp(ba_t*a + bx_t*x)
-  } else {
-    denom_surv <- exp(ba_t*a + bx_t*(x^2))
-  }
+  if(surv_is_cox){denom_surv <- exp(ba_t*a + bx_t*x)} 
+    else {denom_surv <- exp(ba_t*a + bx_t*(x^2))}
+  
   surv_t <- rexp(n, 1)/denom_surv
   
   #Generating censoring times
-  if(cens_is_cox){
-    denom_cens <- exp(ba_c*a + bx_c*x)
-  } else {
-    denom_cens <- exp(ba_c*a + bx_c*x^2)
-  }
+  if(cens_is_cox){denom_cens <- exp(ba_c*a + bx_c*x)} 
+    else {denom_cens <- exp(ba_c*a + bx_c*x^2)}
+  
   cens_t <- rexp(n, 1)/denom_cens
   #Observed values
   t_obs <- pmin(surv_t, cens_t)
@@ -111,8 +108,7 @@ generate_survival_data <- function(n, ba_t = 1, bx_t = 1, ba_c = 1, bx_c = 1, su
   
   return(data.frame(T_true = surv_t, C = cens_t, T_obs = t_obs, Uncensored = delta, X = x, A = a))
 }
-  
-  
+  generate_survival_data(10, )
 ###################
 #Summary statistics
 ###################
@@ -121,12 +117,27 @@ proportion_censored <- function(data){
   mean(get_censor_status(data))
 }
 
-#Run Cox-model
+
+###########
+#Cox models
+###########
+
+
+#Fit Cox-model
 cox_naive_model <- function(data){
   coxph(formula = Surv(T_obs, Uncensored) ~  A + X, data = data)
 }
 
-#Run Oracle Cox_model
+#Fit Oracle Cox_model
+cox_oracle_model <- function(data, surv_is_cox = T){
+  if(surv_is_cox){
+    mod <- cox_naive_model(data)
+  }
+  else{
+    mod <- coxph(formula = Surv(T_obs, Uncensored) ~  A + X2, data = data)
+  }
+  return(mod)
+}
 
 #################
 #Helper functions
@@ -155,30 +166,16 @@ empirical_dist <- function(data, a, x){
 ################################
 #Confidence intervals
 #####################
-#---------------------
-
 
 #Create CI for A based on Cox-regression
 confidence_interval_A_cox <- function(model, conf_level = 0.05){
-  se_A <- get_se_A_estimate(model)
-  A <- get_A_estimate(model)
-  q <- qnorm(conf_level/2)
-  lower <- A + q*se_A
-  upper <- A - q*se_A
-  CI <- c(lower, upper)
-  names(CI) <- c("lower", "upper")
+  CI <- confint(model, parm = "A", conf_level = conf_level)
   return(CI)
 }
 
 #Create CI for X based on Cox regression
 confidence_interval_X_cox <- function(model, conf_level = 0.05){
-  se_X <- get_se_X_estimate(model)
-  X <- get_X_estimate(model)
-  q <- qnorm(conf_level/2)
-  lower <- X + q*se_X
-  upper <- X - q*se_X
-  CI <- c(lower, upper)
-  names(CI) <- c("lower", "upper")
+  CI <- confint(model, parm = "X", conf_level = conf_level)
   return(CI)
 }
 
@@ -197,61 +194,24 @@ check_estimate_X <- function(model, bx_t){
   return(check_val_in_CI(bx_t, confidence_interval_X_cox(model = model)))
 }
 
-#############################################
-#PROBLEMS
-#---------------
-#The code below is programmed for reproducibility
-#############################
 
-#################################
-#COX MODEL HAS TOO HIGH PRECISION
-#################################
+#Troubleshooting code
 
 #A function that generates data with n observations and variable if Cox-generated 
 #RETURNS: T/F whether model included the true value of treatment effect
-
-check_mod <- function(n = 10000, surv_is_cox = T, treatment_effect =  0, cens_is_cox = T){
-      #Generate data
-      dat <- generate_survival_data(n = n, ba_t = treatment_effect, surv_is_cox = surv_is_cox, ba_c = 1, cens_is_cox = cens_is_cox)
-      #Fit Cox model
-      mod <- cox_naive_model(dat)
-      return(check_estimate_A(mod, 0))
+check_mod <- function(n = 10000, surv_is_cox = F, treatment_effect =  0, cens_is_cox = T, x_vals = c(0,1)){
+  #Generate data
+  dat <- generate_survival_data(n = n, ba_t = treatment_effect, surv_is_cox = surv_is_cox, ba_c = 1, cens_is_cox = cens_is_cox, x_vals = x_vals)
+  #Fit Cox model
+  mod <- cox_naive_model(dat)
+  return(check_estimate_A(mod, treatment_effect))
 }
 
-#Do the experiment l times
-l <- 1000
-res1 <- replicate(l, check_mod(cens_is_cox = F))
-#Find the average number of times the interval included the true effect.
-#Expected: 95%
-#Reason: We construct a 95% CI around the point estimate, and the function is correctly specified
-sum(res1);mean(res1)
-#Result: 100% inclusion <- something is wrong in the procedure
-
-#Do the same for non-cox generated data
-res2 <- replicate(l, check_mod(surv_is_cox = F))
-#Find the average number of times the interval included the true effect.
-#Expected: less than 95%
-#Reason: The data has not been generated as a Cox_model, so we are using the wrong model to analyze the data
-sum(res2);mean(res2)
-
-
-##################################################
-#ORACLE MODEL DOES NOT PERFORM AS GOOD AS EXPECTED
-##################################################
-
-#Define Oracle model
-cox_oracle_model <- function(data, surv_is_cox = T){
-  if(surv_is_cox){
-    mod <- coxph(formula = Surv(T_obs, Uncensored) ~  A + X, data = data)
-  }
-  else{
-    mod <- coxph(formula = Surv(T_obs, Uncensored) ~  A + X2, data = data)
-    }
-  return(mod)
-}
 
 #Create a model comparison function
-model_comparison <- function(data, surv_is_cox, ba_T){
+#INPUT: Data (df), surv_is_cox (Boolean) - decides how Oracle is defined, 
+#OUTPUT: Boolean on whether the CI included true value
+model_comparison <- function(data, surv_is_cox, treatment_effect){
   #If the data has not been generated as a Cox-model, we need to find X^2
   if(!surv_is_cox){
     data$X2 <- get_X_values(data)^2
@@ -263,31 +223,92 @@ model_comparison <- function(data, surv_is_cox, ba_T){
   mod_oracle <- cox_oracle_model(data, surv_is_cox)
   
   #Checking if the models have included the true value of ba
-  naive_correct <- check_estimate_A(model = mod_naive, ba_t = ba_T)
-  oracle_correct <- check_estimate_A(model = mod_oracle,ba_t = ba_T )
+  a_naive <- get_A_estimate(mod_naive)
+  a_oracle <- get_A_estimate(mod_oracle)
+  naive_correct <- check_estimate_A(model = mod_naive, ba_t = treatment_effect)
+  oracle_correct <- check_estimate_A(model = mod_oracle,ba_t = treatment_effect )
   
-  output <- c(naive_correct, oracle_correct)
-  names(output ) <- c("naive", "oracle")
-  #returning a tuple with Boolean if the models guessed correctly
+  output <- c(naive_correct, oracle_correct, a_naive, a_oracle)
+  names(output ) <- c("naive", "oracle", "naive", "oracle")
   return(output)
 }
 
+
+#INPUT: n - number of data points, Treatment_effect, x_vals - the range for the x_values
 #Creating function that showcases the problem. Assume that the treatment effect is 0
-showcase_problem <- function(n = 10000, treatment_effect = 0){
-  dat <- generate_survival_data(n, surv_is_cox = F, ba_t = treatment_effect)
-  return(model_comparison(dat, surv_is_cox = F, ba_T = treatment_effect))
+showcase_oracle_not_better <- function(n = 400, treatment_effect = 0, 
+                                       x_range = c(0,10), surv_is_cox = F, cens_is_cox =F){
+  dat <- generate_survival_data(n, ba_t = treatment_effect,  
+                                surv_is_cox = surv_is_cox, cens_is_cox = cens_is_cox,
+                                x_range = x_range)
+  res <- model_comparison(dat, surv_is_cox = surv_is_cox, treatment_effect = treatment_effect)
+  cens <- proportion_censored(dat)
+  names(cens) <- c("prop not-censored")
+  return(c(res, cens))
 }
-
-#replicating study l times
-l <- 1000
-result <- replicate(l, showcase_problem())
-#Expected: Oracle should perform better than normal cox
-#Reason: data has not been created in Cox-manner
-rowSums(result)
-rowMeans(result)
-#result: The oracle and the cox model both predict correctly with 100% accuracy, which is very problemati
+#showcase_oracle_not_better()
+#
+#showcase_oracle_not_better(treatment_effect = )
+#res <- replicate(1000, showcase_oracle_not_better(n = 1000, treatment_effect = log(2), x_range = c(0,3), surv_is_cox = F, cens_is_cox = T))
 
 
+
+#############################################
+#PROBLEMS
+#---------------
+#The code below is programmed for reproducibility
+#############################
+
+#################################
+#COX MODEL HAS TOO HIGH PRECISION
+#################################
+
+
+#Do the experiment l times
+#l <- 1000
+#res1 <- replicate(l, check_mod(x_vals = c(0,5), surv_is_cox = T))
+##Find the average number of times the interval included the true effect.
+##Expected: 95%
+##Reason: We construct a 95% CI around the point estimate, and the function is correctly specified
+#sum(res1);mean(res1)
+##Result: 100% inclusion <- something is wrong in the procedure
+#
+##Do the same for non-cox generated data
+#res2 <- replicate(l, check_mod(surv_is_cox = F))
+##Find the average number of times the interval included the true effect.
+##Expected: less than 95%
+##Reason: The data has not been generated as a Cox_model, so we are using the wrong model to analyze the data
+#sum(res2);mean(res2)
+
+
+##################################################
+#ORACLE MODEL DOES NOT PERFORM AS GOOD AS EXPECTED
+##################################################
+
+
+#
+#
+#
+#
+##replicating study l times
+#l <- 1000
+##result <- replicate(l, showcase_problem(surv_is_cox = T))
+#result_2 <- replicate(l, showcase_oracle_not_better(surv_is_cox = F, x_range = c(0,4)))
+####Expected: Oracle should perform better than normal cox
+####Reason: data has not been created in Cox-manner
+##rowSums(result);rowMeans(result)
+#rowSums(result_2); rowMeans(result_2)
+##result: The oracle and the cox model both predict correctly with 100% accuracy, which is very problemati
+#
+#save_data <- matrix(c(0,0,0,0), nrow = 1, ncol = 4)
+#save_data <- rbind(save_data, c(0,1,2))
+#save_data
+#for (i in (1:10)){
+#  res <- replicate(l, showcase_oracle_not_better(surv_is_cox = F, x_range = c(0,i)))
+#  results <- c(i, rowMeans(res))
+#  save_data <- rbind(save_data, results)
+#}
+#
 
 
 
@@ -296,6 +317,8 @@ rowMeans(result)
 #plot(m)
 #
 #?coxph
+
+
 
 
 
@@ -501,3 +524,30 @@ rowMeans(result)
 #  
 #}
 
+##########################
+#LEGACY CONFIDENCE INTERVAL
+###########################
+
+#Create CI for A based on Cox-regression
+#confidence_interval_A_cox <- function(model, conf_level = 0.05){
+   #se_A <- get_se_A_estimate(model)
+  #A <- get_A_estimate(model)
+  #q <- qnorm(conf_level/2)
+  #lower <- A + q*se_A
+  #upper <- A - q*se_A
+  #CI <- c(lower, upper)
+  #names(CI) <- c("lower", "upper")
+#  return(CI)
+#}
+
+##Create CI for X based on Cox regression
+#confidence_interval_X_cox <- function(model, conf_level = 0.05){
+#  se_X <- get_se_X_estimate(model)
+#  X <- get_X_estimate(model)
+#  q <- qnorm(conf_level/2)
+#  lower <- X + q*se_X
+#  upper <- X - q*se_X
+#  CI <- c(lower, upper)
+#  names(CI) <- c("lower", "upper")
+#  return(CI)
+#}
