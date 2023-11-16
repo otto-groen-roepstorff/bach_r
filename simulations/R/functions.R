@@ -8,10 +8,10 @@ library(data.table)
 
 
 
-##############
-#Get functions
-#Optimized for generation method
-##############
+
+#Get functions----------------------
+#Optimized for generation method----
+
 
 
 
@@ -58,10 +58,19 @@ get_se_X_estimate <- function(model){
   return(sqrt(model$var[2,2]))
 }
 
-####################
-#Filtering functions
-####################
+get_jump_times <- function(cum_hazard_matrix){
+  return(cum_hazard_matrix[,"time"])
+}
 
+get_cum_baseline_hazard_times <- function(cum_hazard_matrix){
+  return(cum_hazard_matrix[,"(Intercept)"])
+}
+
+get_parameter_estimates <- function(cox.aalen_model){
+  return(cox.aalen_model$gamma)
+}
+
+#Filtering functions ---------------
 filter_on_a <- function(data, val){
   return(data %>% filter(a == val))
 }
@@ -71,16 +80,24 @@ filter_on_x <- function(data, val){
 }
 
 
-#####################
-#GENERATING METHODS
-#####################
+
+#GENERATING METHODS-----------------
 
 
-generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), ba_c = log(2), bx_c = log(2), surv_is_cox = T, 
-                                        cens_is_cox = T, prop_a = 1/2, 
-                                        x_range = c(-1,1), x_cont = T, 
-                                        x_vals = c(0,1)){
+generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), bz_t = log(2),
+                                   ba_c = log(2), bx_c = log(2), bz_c = log(2),
+                                   surv_is_cox = T, cens_is_cox = T, 
+                                   prop_a = 1/2, 
+                                   x_range = c(-1,1), x_cont = T, x_vals = c(0,1)){
   #Generate list of treatment indicators
+  
+  
+  z <- runif(n = n, min = 0, max = 1)
+  
+  if(!surv_is_cox){
+    prop_a <- z
+  }
+  
   a <- rbinom(n, 1, prop_a) 
   
   if(x_cont){
@@ -89,15 +106,16 @@ generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), ba_c = log(2
   else{
     x <- sample(x_vals, n, replace = T)
   }
+  
   #Generating survival times
   if(surv_is_cox){denom_surv <- exp(ba_t*a + bx_t*x)} 
-    else {denom_surv <- exp(ba_t*a + bx_t*(x^2))}
+    else {denom_surv <- exp(ba_t*a + bx_t*(x^2)+bz_t*z)}
   
   surv_t <- rexp(n, 1)/denom_surv
   
   #Generating censoring times
-  if(cens_is_cox){denom_cens <- exp(ba_c*a + bx_c*x)} 
-    else {denom_cens <- exp(ba_c*a + bx_c*x^2)}
+  if(cens_is_cox){denom_cens <- exp(bx_c*x)} 
+    else {denom_cens <- exp(bx_c*x^2+bz_c*z)}
   
   cens_t <- rexp(n, 1)/denom_cens
   #Observed values
@@ -106,26 +124,29 @@ generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), ba_c = log(2
   #Status
   delta <- surv_t < cens_t
   
-  return(data.frame(T_true = surv_t, C = cens_t, T_obs = t_obs, Uncensored = delta, X = x, A = a))
+  return(data.frame(T_true = surv_t, C = cens_t, T_obs = t_obs, Uncensored = delta, X = x, A = a, Z = z))
 }
-  generate_survival_data(10, )
-###################
-#Summary statistics
-###################
+
+
+
+
+#Summary statistics ----------------
 
 proportion_censored <- function(data){
   mean(get_censor_status(data))
 }
 
 
-###########
-#Cox models
-###########
 
+#Cox models-------------------------
 
 #Fit Cox-model
 cox_naive_model <- function(data){
   coxph(formula = Surv(T_obs, Uncensored) ~  A + X, data = data)
+}
+
+cox.aalen_naive_model <- function(data){
+  cox.aalen(formula = Surv(T_obs, Uncensored) ~  prop(A) + prop(X), data = data)
 }
 
 #Fit Oracle Cox_model
@@ -134,14 +155,14 @@ cox_oracle_model <- function(data, surv_is_cox = T){
     mod <- cox_naive_model(data)
   }
   else{
-    mod <- coxph(formula = Surv(T_obs, Uncensored) ~  A + X2, data = data)
+    mod <- coxph(formula = Surv(T_obs, Uncensored) ~  A + X2 + Z, data = data)
   }
   return(mod)
 }
 
-#################
-#Helper functions
-#################
+
+#Helper functions------------------
+
 
 #Empirical distribution
 empirical_dist <- function(data, a, x){
@@ -163,9 +184,14 @@ empirical_dist <- function(data, a, x){
 }
 
 
-################################
-#Confidence intervals
-#####################
+#Predict based on estimates
+predict_cox.aalen <- function(A, W, betaHat, cum_base_haz, n_jumps){ #W is the rest of the covariates, A is treatment
+  val <- (exp(cbind(A, W) %*% betaHat) %*% cum_base_haz)[,2:(n_jumps)] #hvorfor skubbe med 1?
+  return(val)
+}
+cbind(A,X)%*%beta_hat%*%cum_haz
+
+#Confidence intervals---------------
 
 #Create CI for A based on Cox-regression
 confidence_interval_A_cox <- function(model, conf_level = 0.05){
@@ -195,11 +221,11 @@ check_estimate_X <- function(model, bx_t){
 }
 
 
-#Troubleshooting code
+#Troubleshooting code--------------
 
 #A function that generates data with n observations and variable if Cox-generated 
 #RETURNS: T/F whether model included the true value of treatment effect
-check_mod <- function(n = 10000, surv_is_cox = F, treatment_effect =  0, cens_is_cox = T, x_vals = c(0,1)){
+check_mod <- function(n = 400, surv_is_cox = F, treatment_effect =  log(2), cens_is_cox = T, x_vals = c(0,1)){
   #Generate data
   dat <- generate_survival_data(n = n, ba_t = treatment_effect, surv_is_cox = surv_is_cox, ba_c = 1, cens_is_cox = cens_is_cox, x_vals = x_vals)
   #Fit Cox model
@@ -236,8 +262,8 @@ model_comparison <- function(data, surv_is_cox, treatment_effect){
 
 #INPUT: n - number of data points, Treatment_effect, x_vals - the range for the x_values
 #Creating function that showcases the problem. Assume that the treatment effect is 0
-showcase_oracle_not_better <- function(n = 400, treatment_effect = 0, 
-                                       x_range = c(0,10), surv_is_cox = F, cens_is_cox =F){
+showcase_oracle_not_better <- function(n = 400, treatment_effect = log(2), 
+                                       x_range = c(0,4), surv_is_cox = F, cens_is_cox =F){
   dat <- generate_survival_data(n, ba_t = treatment_effect,  
                                 surv_is_cox = surv_is_cox, cens_is_cox = cens_is_cox,
                                 x_range = x_range)
@@ -253,15 +279,13 @@ showcase_oracle_not_better <- function(n = 400, treatment_effect = 0,
 
 
 
-#############################################
-#PROBLEMS
-#---------------
-#The code below is programmed for reproducibility
-#############################
 
-#################################
+#PROBLEMS-----------------------------
+#The code below is programmed for reproducibility
+
+###
 #COX MODEL HAS TOO HIGH PRECISION
-#################################
+###
 
 
 #Do the experiment l times
@@ -281,12 +305,15 @@ showcase_oracle_not_better <- function(n = 400, treatment_effect = 0,
 #sum(res2);mean(res2)
 
 
-##################################################
+###
 #ORACLE MODEL DOES NOT PERFORM AS GOOD AS EXPECTED
-##################################################
+###
 
 
-#
+#res <- replicate(n = 1000, check_mod())
+#res <- replicate(n = 10000, showcase_oracle_not_better(n = 1000))
+
+#rowMeans(res)
 #
 #
 #
@@ -333,14 +360,48 @@ showcase_oracle_not_better <- function(n = 400, treatment_effect = 0,
 #plot(g, from = 0, to = 1, add = T, col = "red")
 #plot(h, from = 0, to = 1, add = T, col = "green")
 
-###################
-#EIF components
-###############
 
-#extended_survival_prop <- function()
+#EIF components----------------------
 
 
-#generate_censoring_times(10,x_vals = 1, is_cox = F)
+#Jeg forsøgt at implementere det, men der nogle problmer med dimensioner, som jeg ikke helt kan forstå
+#Estimating P(T1 > T0 | W)
+P_treatment_extend_survival <- function(data){
+  mod <- cox.aalen_naive_model(data)
+  n <- get_row_length(data)
+  cum_haz_matrix <- mod1$cum
+  n_jumps <- get_row_length(cum_haz_matrix)
+  jump_times <- get_jump_times(cum_haz_matrix)
+  cum_haz <- get_cum_baseline_hazard_times(cum_haz_matrix)
+  beta_hat <- get_parameter_estimates(mod)
+  s
+  A <- get_A_values(data)
+  X <- get_X_values(data)
+  #Z <- get_Z_values(data)
+  cumhaz_hat <- predict_cox.aalen(A = A, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
+  cumhaz1_hat <- predict_cox.aalen(A = 1, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
+  cumhaz0_hat <- predict_cox.aalen(A = 0, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
+  
+  #Estimating survival function
+  Shat_1 <- exp(-cumhaz1_hat)
+  Shat_0 <- exp(-cumhaz0_hat)
+  
+  
+  delta_cumbasehaz <- matrix(data = cum_haz[-1], nrow = n, ncol = n_jumps-1, byrow = T) -
+    matrix(data = cum_haz[-(n_jumps)], nrow = n, ncol = n_jumps-1, byrow = T)
+  
+  delta_cumbasehaz2 <- c(delta_cumbasehaz, delta_cumbasehaz[,230])
+  
+  
+  integrand <- Shat_1 * Shat_0 * delta_cumbasehaz2
+  
+  return(mean(exp(beta_hat["prop(X)"] * X) * rowSums(integrand))
+)
+  
+}
+
+data <- generate_survival_data(100)
+P_treatment_extend_survival(dat)
 
 #----------------------------------------------
 ###########################
