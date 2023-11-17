@@ -70,6 +70,13 @@ get_parameter_estimates <- function(cox.aalen_model){
   return(cox.aalen_model$gamma)
 }
 
+get_covariates <- function(data){
+  res <- data[,!names(data) %in% c("T_true", "C", "T_obs", "Uncensored", "A")]
+  return(res)
+}
+
+get_covariates(generate_survival_data(10))
+
 #Filtering functions ---------------
 filter_on_a <- function(data, val){
   return(data %>% filter(a == val))
@@ -82,7 +89,6 @@ filter_on_x <- function(data, val){
 
 
 #GENERATING METHODS-----------------
-
 
 generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), bz_t = log(2),
                                    ba_c = log(2), bx_c = log(2), bz_c = log(2),
@@ -185,11 +191,12 @@ empirical_dist <- function(data, a, x){
 
 
 #Predict based on estimates
-predict_cox.aalen <- function(A, W, betaHat, cum_base_haz, n_jumps){ #W is the rest of the covariates, A is treatment
-  val <- (exp(cbind(A, W) %*% betaHat) %*% cum_base_haz)[,2:(n_jumps)] #hvorfor skubbe med 1?
+predict_cox.aalen <- function(A, W, betaHat,cum_base_haz, n_jumps){ #W is the rest of the covariates, A is treatment
+  val <- (exp(cbind(A, W) %*% betaHat) %*% cum_base_haz)[,2:(n_jumps+1)] #hvorfor skubbe med 1?
   return(val)
 }
-cbind(A,X)%*%beta_hat%*%cum_haz
+
+
 
 #Confidence intervals---------------
 
@@ -272,6 +279,7 @@ showcase_oracle_not_better <- function(n = 400, treatment_effect = log(2),
   names(cens) <- c("prop not-censored")
   return(c(res, cens))
 }
+
 #showcase_oracle_not_better()
 #
 #showcase_oracle_not_better(treatment_effect = )
@@ -366,18 +374,20 @@ showcase_oracle_not_better <- function(n = 400, treatment_effect = log(2),
 
 #Jeg forsøgt at implementere det, men der nogle problmer med dimensioner, som jeg ikke helt kan forstå
 #Estimating P(T1 > T0 | W)
+
+
 P_treatment_extend_survival <- function(data){
   mod <- cox.aalen_naive_model(data)
   n <- get_row_length(data)
-  cum_haz_matrix <- mod1$cum
-  n_jumps <- get_row_length(cum_haz_matrix)
+  cum_haz_matrix <- mod$cum
+  n_jumps <- get_row_length(cum_haz_matrix)-1
   jump_times <- get_jump_times(cum_haz_matrix)
   cum_haz <- get_cum_baseline_hazard_times(cum_haz_matrix)
   beta_hat <- get_parameter_estimates(mod)
-  s
   A <- get_A_values(data)
   X <- get_X_values(data)
   #Z <- get_Z_values(data)
+  
   cumhaz_hat <- predict_cox.aalen(A = A, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
   cumhaz1_hat <- predict_cox.aalen(A = 1, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
   cumhaz0_hat <- predict_cox.aalen(A = 0, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
@@ -387,21 +397,51 @@ P_treatment_extend_survival <- function(data){
   Shat_0 <- exp(-cumhaz0_hat)
   
   
-  delta_cumbasehaz <- matrix(data = cum_haz[-1], nrow = n, ncol = n_jumps-1, byrow = T) -
-    matrix(data = cum_haz[-(n_jumps)], nrow = n, ncol = n_jumps-1, byrow = T)
-  
-  delta_cumbasehaz2 <- c(delta_cumbasehaz, delta_cumbasehaz[,230])
+  delta_cumbasehaz <- matrix(data = cum_haz[-1], nrow = n, ncol = n_jumps, byrow = T) -
+    matrix(data = cum_haz[-(n_jumps+1)], nrow = n, ncol = n_jumps, byrow = T)
   
   
-  integrand <- Shat_1 * Shat_0 * delta_cumbasehaz2
   
-  return(mean(exp(beta_hat["prop(X)"] * X) * rowSums(integrand))
-)
+    integrand <- Shat_1 * Shat_0 * delta_cumbasehaz
+    res <- mean(exp(beta_hat["prop(X)",] * X) * rowSums(integrand))
   
+  return(res)
 }
 
-data <- generate_survival_data(100)
-P_treatment_extend_survival(dat)
+
+propensity <- function(A_of_interest = 1, data, surv_is_cox = T){
+  
+  if(surv_is_cox){
+    mod <- glm(A ~ X, family = "binomial", data = data)
+    new_data <- get_X_values(data)
+    new_data <- data.frame(X = data[,"X"])
+  }
+  else{ 
+    mod <-  glm(A ~ X^2 + Z, family = "binomial", data = data)
+  mod$coefficients
+  new_data <- get_covariates(data)
+  new_data <- data.frame(X = data[,"X"], Z = data[,"Z"] )
+  }
+  
+  
+  predictions <- predict(object = mod, newdata = new_data)  
+  pi_a_1 <- mean(plogis(predictions))
+  pi_a_0 <- 1 - pi_a_1
+  props <- c(pi_a_0, pi_a_1)
+  names(props) <- c("pi_a_0", "pi_a_1")
+  coeff <- plogis(mod$coefficients)
+  
+  output <- list(props, coeff)
+  return(output)
+}
+
+
+#mod1 <- glm(A ~ X, family = "binomial", data = dat)
+#predict(object = mod1, data = dat$X)
+#summary(mod1)
+#interceptss <- mod1$coefficients[1]
+#exp(interceptss)/(1+exp(interceptss))
+#plogis(interceptss)
 
 #----------------------------------------------
 ###########################
