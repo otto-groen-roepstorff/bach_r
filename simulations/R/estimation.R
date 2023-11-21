@@ -74,17 +74,17 @@ mean(exp(betahat[2] * test_data$X) * rowSums(integrand))
 T_obs_times_test <- matrix(data = test_data$T_obs, nrow = n, ncol = no_jumps_test)
 jump_times_test <- matrix(data = tau_test, nrow = n, ncol = no_jumps_test, byrow = T)
 
-T_obs_times_train <- matrix(data = test_data$T_obs, nrow = n, ncol = no_jumps)
+T_obs_times_train <- matrix(data = train_data$T_obs, nrow = n, ncol = no_jumps)
 jump_times_train <- matrix(data = tau, nrow = n, ncol = no_jumps, byrow = T)
 
 #Matrix [i,j] displaying if individual i is at risk at jump time tau_j
-at_risk <- matrix(data = as.numeric(T_obs_times > jump_times), nrow = n, ncol = no_jumps_test)
+at_risk <- matrix(data = as.numeric(T_obs_times_train > jump_times_train), nrow = n, ncol = no_jumps)
 
 #Estimating the change in the cumulative hazard for each individual i dL_i(t| A_i, W_i) = L_i(t| A_i, W_i) - L_i(t-1 | A_i, W_i):
 dL <- cumhaz_hat[,-1] - cumhaz_hat[,-(no_jumps+1)]
 
 #Estimating the change in counting process for each individual i dN_i(t) = I(T_i = t, Delta = 1):
-dN <- matrix(data = as.numeric(T_obs_times == jump_times), nrow = n, ncol = no_jumps_test) * matrix(data = test_data$Uncensored, nrow = n, ncol = no_jumps_test)
+dN <- matrix(data = as.numeric(T_obs_times_train == jump_times_train), nrow = n, ncol = no_jumps) * matrix(data = train_data$Uncensored, nrow = n, ncol = no_jumps)
 
 #Estimating change in the martingale for individual i dM_i(t| A, X) = dN_i(t) - I(T_i > t) dL_i(t | A_i, W_i):
 dM <- dN - at_risk*dL
