@@ -3,12 +3,11 @@
 ################################################################
 #Generating data for testing estimators
 ################################################################
-n <- 10000
-test_data <- generate_survival_data(n, ba_t = -2, bx_t = -2, bz_t = 1, surv_is_cox = T,
-                                       ba_c = log(2), bx_c = 1, bz_c = 1, cens_is_cox = T)
-
-
-
+n <- 1000
+train_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = T,
+                                     ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = F)
+test_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = T,
+                                       ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = F)
 
 
 
@@ -17,7 +16,10 @@ test_data <- generate_survival_data(n, ba_t = -2, bx_t = -2, bz_t = 1, surv_is_c
 ################################################################
 
 test_model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(X), data = test_data)
-cum <- test_model$cum
+train_model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(X), data = train_data)
+test_model_naive <- cox_naive_model(test_data)
+cum <- train_model$cum
+cum_test <- test_model$cum
 
 ################################
 #Estimating P(T* > t | A = 1, W)
@@ -25,17 +27,19 @@ cum <- test_model$cum
 
 
 #Jump times and cumulative baseline hazard:
-no_jumps <- dim(cum)[1] - 1    #Number of jumps T > t
-tau <- cum[,1][-1]      #Jump times tau1, tau2,...,tau_no_jumps
-cumbasehaz <- cum[,2]   #Cumulative baseline hazard   Lambda0(tau0), Lambda0(tau1),...,Lambda0(tau_no_jumps)
+no_jumps <- dim(cum)[1] - 1     # Number of jumps T > t
+tau <- cum[,1][-1]              # Jump times tau1, tau2,...,tau_no_jumps
+no_jumps_test <- dim(cum_test)[1] - 1
+tau_test <- cum_test[,1][-1]
+cumbasehaz <- cum[,2]           # Cumulative baseline hazard Lambda0(tau0), Lambda0(tau1),...,Lambda0(tau_no_jumps)
 
 
 #Betahat
-betahat <- test_model$gamma
+betahat <- train_model$gamma
 
 
 #Estimated cumulative hazard assuming the cox-model
-cumhaz_hat <- (exp(cbind(test_data$A, test_data$X) %*% betahat) %*% cumbasehaz)             # cumhaz(t | A, X)
+cumhaz_hat <- exp(cbind(test_data$A, test_data$X) %*% betahat) %*% cumbasehaz          # cumhaz(t | A, X)
 cumhaz1_hat <- (exp(cbind(1, test_data$X) %*% betahat) %*% cumbasehaz)[,-1]            # cumhaz(t | A = 1, X)
 cumhaz0_hat <- (exp(cbind(0, test_data$X) %*% betahat) %*% cumbasehaz)[,-1]            # cumhaz(t | A = 0, X)
 
@@ -67,32 +71,39 @@ mean(exp(betahat[2] * test_data$X) * rowSums(integrand))
 ################################################################
 
 #Determining at-risk indicators
-T_obs_times <- matrix(data = test_data$T_obs, nrow = n, ncol = no_jumps)
-jump_times <- matrix(data = tau, nrow = n, ncol = no_jumps, byrow = T)
+T_obs_times_test <- matrix(data = test_data$T_obs, nrow = n, ncol = no_jumps_test)
+jump_times_test <- matrix(data = tau_test, nrow = n, ncol = no_jumps_test, byrow = T)
 
-#Matrix displaying if individual i is at risk at jump time tau_j
-at_risk <- as.numeric(t(t(T_obs_times)) > jump_times)
+T_obs_times_train <- matrix(data = test_data$T_obs, nrow = n, ncol = no_jumps)
+jump_times_train <- matrix(data = tau, nrow = n, ncol = no_jumps, byrow = T)
 
-#Estimating the change in the cumulative hazard for individual i dL_i(t| A_i, W_i) = L_i(t| A_i, W_i) - L_i(t-1 | A_i, W_i):
+#Matrix [i,j] displaying if individual i is at risk at jump time tau_j
+at_risk <- matrix(data = as.numeric(T_obs_times > jump_times), nrow = n, ncol = no_jumps_test)
+
+#Estimating the change in the cumulative hazard for each individual i dL_i(t| A_i, W_i) = L_i(t| A_i, W_i) - L_i(t-1 | A_i, W_i):
 dL <- cumhaz_hat[,-1] - cumhaz_hat[,-(no_jumps+1)]
 
-#Estimating the change in counting process for individual i dN_i(t) = I(T_i = t, Delta = 1):
-dN <- as.numeric(t(t(T_obs_times)) == jump_times) * matrix(data = test_data$Uncensored, nrow = n, ncol = no_jumps)
+#Estimating the change in counting process for each individual i dN_i(t) = I(T_i = t, Delta = 1):
+dN <- matrix(data = as.numeric(T_obs_times == jump_times), nrow = n, ncol = no_jumps_test) * matrix(data = test_data$Uncensored, nrow = n, ncol = no_jumps_test)
 
-#Estimating change in the martingale for individual i dM_i(t| A, X) = dN_i(t) - I(T_i > t) L_i(t | A_i, W_i):
+#Estimating change in the martingale for individual i dM_i(t| A, X) = dN_i(t) - I(T_i > t) dL_i(t | A_i, W_i):
 dM <- dN - at_risk*dL
 
+plot(tau, cumsum(colSums(dN)))
+points(tau, cumsum(colSums(at_risk*dL)), col = 'red')
 
 
-
-
+plot(tau,colSums(dM))
 
 
 ################################################################
 #               Estimating martingale integral
 ################################################################
 
-#The martingale integral sum_{T_j} 1/(S(T_j| A , X)*K_C(T_j | A, X)) dM(T_j | A, X)
+#The martingale integral sum_{T_j} 1/(S(T_j| A , X)*K_C(T_j | A, X)) dM(T_j | A, X).
+
+#We have two integrals one which depend on u and one which depend on t. How to handle this? We are first integrating from 0 to t and
+#then from 0 to tau. I assume that the first integral should be of the same dimension as S(t | A, X), but not sure.
 
 #First estimating the survival function in jump times S(T_j | A, X):
 Shat <- exp(-cumhaz_hat[,-1])

@@ -75,7 +75,6 @@ get_covariates <- function(data){
   return(res)
 }
 
-get_covariates(generate_survival_data(10))
 
 #Filtering functions ---------------
 filter_on_a <- function(data, val){
@@ -114,16 +113,27 @@ generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), bz_t = log(2
   }
   
   #Generating survival times
-  if(surv_is_cox){denom_surv <- exp(ba_t*a + bx_t*x)} 
-    else {denom_surv <- exp(ba_t*a + bx_t*(x^2)+bz_t*z)}
+  #if(surv_is_cox){denom_surv <- exp(ba_t*a + bx_t*x)} 
+  #  else {denom_surv <- exp(ba_t*a + bx_t*(x^2)+bz_t*z)}
+  #
+  #surv_t <- rexp(n, 1)/denom_surv
   
-  surv_t <- rexp(n, 1)/denom_surv
+  
+  #Generating nasty survival times
+  if(surv_is_cox){surv_t <- rexp(n, 1)/exp(ba_t*a + bx_t*x)} 
+    else {surv_t <- rgamma(n, shape = z*20, rate = a+1)}
+  
+  
   
   #Generating censoring times
-  if(cens_is_cox){denom_cens <- exp(bx_c*x)} 
-    else {denom_cens <- exp(bx_c*x^2+bz_c*z)}
+  #if(cens_is_cox){denom_cens <- exp(ba_c*a + bx_c*x)} 
+  #  else {denom_cens <- exp(ba_c*a + bx_c*x^2+bz_c*z)}
+  #
+  #cens_t <- rexp(n, 1)/denom_cens
   
-  cens_t <- rexp(n, 1)/denom_cens
+  if(cens_is_cox){cens_t <- rexp(n, 1)/exp(ba_c*a + bx_c*x)} 
+  else {cens_t <- rgamma(n, shape = z*10, rate = a+1)}
+  
   #Observed values
   t_obs <- pmin(surv_t, cens_t)
   
@@ -138,7 +148,7 @@ generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), bz_t = log(2
 
 #Summary statistics ----------------
 
-proportion_censored <- function(data){
+proportion_observed <- function(data){
   mean(get_censor_status(data))
 }
 
@@ -275,7 +285,7 @@ showcase_oracle_not_better <- function(n = 400, treatment_effect = log(2),
                                 surv_is_cox = surv_is_cox, cens_is_cox = cens_is_cox,
                                 x_range = x_range)
   res <- model_comparison(dat, surv_is_cox = surv_is_cox, treatment_effect = treatment_effect)
-  cens <- proportion_censored(dat)
+  cens <- proportion_observed(dat)
   names(cens) <- c("prop not-censored")
   return(c(res, cens))
 }
@@ -615,7 +625,7 @@ propensity <- function(A_of_interest = 1, data, surv_is_cox = T){
 #  mod_naive <- cox_naive_model(dat)
 #  mod_oracle <- cox_oracle_model(dat, surv_is_cox)
 #  print(dat)
-#  print(proportion_censored(dat))
+#  print(proportion_observed(dat))
 #  naive_correct <- check_estimate_A(model = mod_naive, ba_t = ba_t)
 #  oracle_correct <- check_estimate_A(model = mod_oracle,ba_t = ba_t )
 #  print(confidence_interval_A_cox(model = mod_naive))
