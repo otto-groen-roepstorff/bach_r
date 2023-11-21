@@ -451,6 +451,57 @@ propensity <- function(A_of_interest = 1, data, surv_is_cox = T){
 }
 
 
+#Martingale estimation
+estimate_martingales <- function(train_data, test_data = NA){
+  working_model <- cox_naive_model(train_data)
+  mod_cum <- get_cum_hazard(working_model)
+  mod_jump_times <- get_jump_times(mod_cum)
+  mod_cum_baseline <- get_cum_baseline_hazard_times(mod_cum)
+  n_jump_times <- get_row_length(mod_jump_times)
+  beta_hat <- get_parameter_estimates(working_model)
+  
+  train_A <- get_A_values(train_data)
+  train_X <- get_X_values(train_data)
+  #Jeg synes, at dette er ret suspekt - vi fitter baseline hazard på noget vi har estimeret det ud fra. Selvfølgelig bliver det meget pænt!!
+  mod_est_cum_haz <- exp(cbind(train_A, train_X) %*% beta_hat) %*% mod_cum_baseline
+  
+  #List of observed times
+  T_obs <- get_observed_times(train_data)
+  
+  #Generating at risk matrix. Notice the equality!
+  at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
+  
+  #Change in cumulative hazard per individual (rows) per stopping time (columns).
+  mod_dL <- mod_est_cum_haz[,-1] - mod_est_cum_haz[,-ncol(mod_est_cum_haz)]
+  
+    #Estimating the change in counting process for each individual i dN_i(t) = I(T_i = t, Delta = 1):
+  indicator_jump_time <- outer(T_obs, mod_jump_times, FUN = "==")
+  indicator_uncensored <- get_censor_status(train_data)
+  
+  mod_dN <- indicator_jump_time*indicator_uncensored
+  
+  cumulative_count_obs <- cumsum(colSums(mod_dN))
+  
+  cumulative_risk <-cumsum(colSums(at_risk*mod_dL))
+  
+  mod_dM <- mod_dN - mod_dL
+  
+  
+  res <- list(mod_dM = mod_dM, mod_dN = mod_dN, mod_dL = mod_dL, plot1 = counting_process_plot, N_t = cumulative_count_obs, L_t = cumulative_risk, jump_times = mod_jump_times )
+  return(res)
+}
+
+plot_cum_risk_vs_count <- function(martingale_data){
+  
+  plot(martingale_data$jump_times, martingale_data$N_t)
+  lines(martingale_data$jump_times, martingale_data$L_t, col = 'red')
+}
+
+plot_observed_counting <- function(martingale_data){
+  plot(mod_jump_times, cumulative_count_obs, main = "Observed counting proces", xlab = "Time", ylab = "Counts")
+}
+
+
 #mod1 <- glm(A ~ X, family = "binomial", data = dat)
 #predict(object = mod1, data = dat$X)
 #summary(mod1)
