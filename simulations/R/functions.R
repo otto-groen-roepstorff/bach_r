@@ -58,8 +58,12 @@ get_se_X_estimate <- function(model){
   return(sqrt(model$var[2,2]))
 }
 
+get_cum_hazard <- function(model){
+  return(model$cum)
+}
+
 get_jump_times <- function(cum_hazard_matrix){
-  return(cum_hazard_matrix[,"time"])
+  return(cum_hazard_matrix[,"time"][-1])
 }
 
 get_cum_baseline_hazard_times <- function(cum_hazard_matrix){
@@ -158,7 +162,7 @@ proportion_observed <- function(data){
 
 #Fit Cox-model
 cox_naive_model <- function(data){
-  coxph(formula = Surv(T_obs, Uncensored) ~  A + X, data = data)
+  cox.aalen(formula = Surv(T_obs, Uncensored) ~  prop(A) + prop(X), data = data)
 }
 
 cox.aalen_naive_model <- function(data){
@@ -171,7 +175,7 @@ cox_oracle_model <- function(data, surv_is_cox = T){
     mod <- cox_naive_model(data)
   }
   else{
-    mod <- coxph(formula = Surv(T_obs, Uncensored) ~  A + X2 + Z, data = data)
+    mod <- cox.aalen(formula = Surv(T_obs, Uncensored) ~  prop(A) + prop(X^2) + prop(Z), data = data)
   }
   return(mod)
 }
