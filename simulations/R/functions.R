@@ -158,6 +158,23 @@ proportion_observed <- function(data){
 }
 
 
+breslow_estimator <- function(data, beta_hat){
+  working_model <- cox_naive_model(data)
+  mod_cum <- get_cum_hazard(working_model)
+  mod_jump_times <- get_jump_times(mod_cum)
+  
+  #Generating at risk matrix. Notice the equality!
+  T_obs <- get_observed_times(data)
+  at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
+  
+  #Calculating denominator
+  A_cov <- get_A_values(data)
+  X_cov <- get_X_values(data)
+  
+  denom <- colSums(at_risk * matrix(data = exp(cbind(A_cov, X_cov) %*% beta_hat), nrow = nrow(data), ncol = length(mod_jump_times)))
+  
+  return(c(0,cumsum(1/denom)))
+}
 
 #Cox models-------------------------
 
@@ -457,7 +474,7 @@ estimate_martingales <- function(train_data, test_data = NA){
   mod_cum <- get_cum_hazard(working_model)
   mod_jump_times <- get_jump_times(mod_cum)
   mod_cum_baseline <- get_cum_baseline_hazard_times(mod_cum)
-  n_jump_times <- get_row_length(mod_jump_times)
+  n_jump_times <- get_row_length(mod_jump_times) #This has to be changed to either length(mod_jump_times) or get_row_length(mod_cum)-1
   beta_hat <- get_parameter_estimates(working_model)
   
   train_A <- get_A_values(train_data)
@@ -499,6 +516,41 @@ plot_cum_risk_vs_count <- function(martingale_data){
 
 plot_observed_counting <- function(martingale_data){
   plot(mod_jump_times, cumulative_count_obs, main = "Observed counting proces", xlab = "Time", ylab = "Counts")
+}
+
+
+#Survival function estimation
+get_S_hats <- function(data, surv_is_cox = T){
+  #Fitting model
+  if(surv_is_cox){
+    mod <- cox.aalen(Surv(get_observed_times(data), get_censor_status(data)) 
+                     ~ prop(get_A_values(data)) + prop(get_X_values(data)), data = data)
+  } else {
+    mod <- cox.aalen(Surv(get_observed_times(data), get_censor_status(data)) 
+                     ~ prop(get_A_values(data)) + prop(get_X_values(data)^2), data = data)
+  }
+  
+  #Returning relevant figures from the model to estimate survival functions
+  n <- get_row_length(data)
+  cum_haz_matrix <- mod$cum
+  n_jumps <- get_row_length(cum_haz_matrix)-1
+  jump_times <- get_jump_times(cum_haz_matrix)
+  cum_haz <- get_cum_baseline_hazard_times(cum_haz_matrix)
+  beta_hat <- get_parameter_estimates(mod)
+  A <- get_A_values(data)
+  X <- get_X_values(data)
+  #Z <- get_Z_values(data)
+  
+  cumhaz_hat <- predict_cox.aalen(A = A, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
+  cumhaz1_hat <- predict_cox.aalen(A = 1, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
+  cumhaz0_hat <- predict_cox.aalen(A = 0, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
+  
+  #Estimating survival function
+  Shat <- exp(-cumhaz_hat)
+  Shat_1 <- exp(-cumhaz1_hat)
+  Shat_0 <- exp(-cumhaz0_hat)
+  
+  return(list('Shat' = Shat, 'Shat_0' = Shat_0, 'Shat_1' = Shat_1))
 }
 
 
