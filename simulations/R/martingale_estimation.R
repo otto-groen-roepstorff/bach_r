@@ -4,9 +4,9 @@
 #Generating data for testing estimators
 ################################################################
 n <- 100
-train_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = T,
+train_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = F,
                                      ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = F)
-test_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = T,
+test_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = F,
                                     ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = F)
 
 
@@ -88,8 +88,8 @@ at_risk_test <- matrix(data = as.numeric(T_obs_times_test > jump_times_test), nr
 #Estimating the change in counting process for each individual i dN_i(t) = I(T_i = t, Delta = 1):
 dN_test <- matrix(data = as.numeric(T_obs_times_test == jump_times_test), nrow = n, ncol = no_jumps_test) * matrix(data = test_data$Uncensored, nrow = n, ncol = no_jumps_test)
 
-dM <- dN_test - at_risk_train*dL
-plot(tau_train, colSums(dM), type = 'l')
+#dM <- dN_test - at_risk_train*dL
+#plot(tau_train, colSums(dM), type = 'l')
 
 plot(tau_test, cumsum(colSums(dN_test)))
 lines(tau_train, cumsum(colSums(at_risk_train*dL)), col = 'red')

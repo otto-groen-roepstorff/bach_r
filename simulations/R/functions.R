@@ -224,7 +224,7 @@ empirical_dist <- function(data, a, x){
 
 #Predict based on estimates
 predict_cox.aalen <- function(A, W, betaHat,cum_base_haz, n_jumps){ #W is the rest of the covariates, A is treatment
-  val <- (exp(cbind(A, W) %*% betaHat) %*% cum_base_haz)[,2:(n_jumps+1)] #hvorfor skubbe med 1?
+  val <- (exp(cbind(A, W) %*% betaHat) %*% cum_base_haz)[,-1] #hvorfor skubbe med 1?
   return(val)
 }
 
@@ -474,7 +474,7 @@ estimate_martingales <- function(train_data, test_data = NA){
   mod_cum <- get_cum_hazard(working_model)
   mod_jump_times <- get_jump_times(mod_cum)
   mod_cum_baseline <- get_cum_baseline_hazard_times(mod_cum)
-  n_jump_times <- get_row_length(mod_jump_times) #This has to be changed to either length(mod_jump_times) or get_row_length(mod_cum)-1
+  n_jump_times <- get_row_length(mod_cum) #This has to be changed to either length(mod_jump_times) or get_row_length(mod_cum)-1
   beta_hat <- get_parameter_estimates(working_model)
   
   train_A <- get_A_values(train_data)
@@ -551,6 +551,66 @@ get_S_hats <- function(data, surv_is_cox = T){
   Shat_0 <- exp(-cumhaz0_hat)
   
   return(list('Shat' = Shat, 'Shat_0' = Shat_0, 'Shat_1' = Shat_1))
+}
+
+
+#Censoring distribution estimation
+get_K_hat <- function(data, surv_is_cox = T){
+  
+  n <- get_row_length(data)
+  
+  ######################################################################
+  #                         Getting surv jump times
+  ######################################################################
+  
+  surv_model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(X), data = data)
+  cum <- get_cum_hazard(surv_model)
+  no_jumps <- get_row_length(cum)-1                   # Number of jumps T > t
+  tau <- get_jump_times(cum)                          # Jump times tau1, tau2,...,tau_no_jumps
+  
+  ######################################################################
+  
+  
+  ######################################################################
+  #                         Getting censoring distribution
+  ######################################################################
+  #Fitting model for censoring distribution
+  if(surv_is_cox){
+    mod_cens <- cox.aalen(Surv(get_observed_times(data), get_censor_status(data) == F) ~ 
+                            prop(get_A_values(data)) + prop(get_X_values(data)), data = data)
+  } else {
+    mod_cens <- cox.aalen(Surv(get_observed_times(data), get_censor_status(data) == F) 
+                          ~ prop(get_A_values(data)) + prop(get_X_values(data)^2), data = data)
+  }
+  
+  #Jump times and cumulative baseline hazard:
+  cum_cens <- get_cum_hazard(mod_cens)
+  no_jumps_cens <- get_row_length(cum_cens) - 1               #Number of jumps T > t
+  tau_cens <- get_jump_times(cum_cens)                        #Jump times tau_cens1, tau_cens2,...,tau_cens_no_jumps
+  cumbasehaz_cens <- get_cum_baseline_hazard_times(cum_cens)  #Cumulative baseline hazard   Lambda0(tau0), Lambda0(tau1),...,Lambda0(tau_no_jumps)
+  
+  #Betahat
+  betahat_cens <- get_parameter_estimates(mod_cens)
+  
+  #Estimated cumulative hazard assuming the cox-model
+  #cumhaz_cens_hat <- (exp(cbind(data$A, data$X) %*% betahat_cens) %*% cumbasehaz_cens)        # cumhaz_cens(t | A, X)
+  cumhaz_cens_hat <- predict_cox.aalen(A = get_A_values(data), 
+                                       W = get_X_values(data), 
+                                       betaHat = betahat_cens, 
+                                       cum_base_haz = cumbasehaz_cens, 
+                                       n_jumps = no_jumps_cens)
+  
+  #Estimating survival function S(t | A = 1, X) and S(t | A = 0, X)
+  Khat_temp <- exp(-cumhaz_cens_hat)
+  
+  #The problem now is that the censoring times and failure times do not jump at the same time and we wish to look at the jump times
+  #of the survival function. That is we wish to return Khat not in the jump times tau_cens but in tau. Since Khat is constant in between
+  #jump times, we can simply take the value of Khat corresponding to the largest value of tau_cens that is lower than tau
+  Khat = matrix(NA, nrow = n, ncol = no_jumps) #Maybe this can also be vectorized??
+  for(i in 1:no_jumps){
+    Khat[,i] = Khat_temp[,max((1:no_jumps_cens)[tau_cens<=tau[i]])]
+  }
+  return(Khat)
 }
 
 
