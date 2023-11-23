@@ -491,7 +491,7 @@ estimate_martingales <- function(train_data, test_data = NA){
   #Change in cumulative hazard per individual (rows) per stopping time (columns).
   mod_dL <- mod_est_cum_haz[,-1] - mod_est_cum_haz[,-ncol(mod_est_cum_haz)]
   
-    #Estimating the change in counting process for each individual i dN_i(t) = I(T_i = t, Delta = 1):
+  #Estimating the change in counting process for each individual i dN_i(t) = I(T_i = t, Delta = 1):
   indicator_jump_time <- outer(T_obs, mod_jump_times, FUN = "==")
   indicator_uncensored <- get_censor_status(train_data)
   
@@ -503,6 +503,7 @@ estimate_martingales <- function(train_data, test_data = NA){
   
   mod_dM <- mod_dN - mod_dL
   
+  counting_process_plot <- 'plot'
   
   res <- list(mod_dM = mod_dM, mod_dN = mod_dN, mod_dL = mod_dL, plot1 = counting_process_plot, N_t = cumulative_count_obs, L_t = cumulative_risk, jump_times = mod_jump_times )
   return(res)
@@ -610,6 +611,9 @@ get_K_hat <- function(data, surv_is_cox = T){
   for(i in 1:no_jumps){
     Khat[,i] = Khat_temp[,max((1:no_jumps_cens)[tau_cens<=tau[i]])]
   }
+  
+  Khat[is.na(Khat)] <- 1
+  
   return(Khat)
 }
 
