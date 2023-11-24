@@ -64,7 +64,7 @@ get_cum_hazard <- function(model){
 }
 
 get_jump_times <- function(cum_hazard_matrix){
-  return(cum_hazard_matrix[,"time"][-1])
+  return(cum_hazard_matrix[,"time"])
 }
 
 get_cum_baseline_hazard_times <- function(cum_hazard_matrix){
@@ -224,7 +224,7 @@ empirical_dist <- function(data, a, x){
 
 #Predict based on estimates
 predict_cox.aalen <- function(A, W, betaHat,cum_base_haz, n_jumps){ #W is the rest of the covariates, A is treatment
-  val <- (exp(cbind(A, W) %*% betaHat) %*% cum_base_haz)[,-1] #hvorfor skubbe med 1?
+  val <- (exp(cbind(A, W) %*% betaHat) %*% cum_base_haz)
   return(val)
 }
 
@@ -294,7 +294,7 @@ model_comparison <- function(data, surv_is_cox, treatment_effect){
   oracle_correct <- check_estimate_A(model = mod_oracle,ba_t = treatment_effect )
   
   output <- c(naive_correct, oracle_correct, a_naive, a_oracle)
-  names(output ) <- c("naive", "oracle", "naive", "oracle")
+  names(output) <- c("naive", "oracle", "naive", "oracle")
   return(output)
 }
 
@@ -412,7 +412,7 @@ P_treatment_extend_survival <- function(data){
   mod <- cox.aalen_naive_model(data)
   n <- get_row_length(data)
   cum_haz_matrix <- mod$cum
-  n_jumps <- get_row_length(cum_haz_matrix)-1
+  n_jumps <- get_row_length(cum_haz_matrix)
   jump_times <- get_jump_times(cum_haz_matrix)
   cum_haz <- get_cum_baseline_hazard_times(cum_haz_matrix)
   beta_hat <- get_parameter_estimates(mod)
@@ -429,19 +429,17 @@ P_treatment_extend_survival <- function(data){
   Shat_0 <- exp(-cumhaz0_hat)
   
   
-  delta_cumbasehaz <- matrix(data = cum_haz[-1], nrow = n, ncol = n_jumps, byrow = T) -
-    matrix(data = cum_haz[-(n_jumps+1)], nrow = n, ncol = n_jumps, byrow = T)
+  delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])
   
+  integrand <- t(t(Shat_1 * Shat_0) * delta_cumbasehaz)
   
-  
-    integrand <- Shat_1 * Shat_0 * delta_cumbasehaz
-    res <- mean(exp(beta_hat["prop(X)",] * X) * rowSums(integrand))
+  res <- exp(cbind(0, X) %*% beta_hat) * rowSums(integrand)
   
   return(res)
 }
 
 
-propensity <- function(A_of_interest = 1, data, surv_is_cox = T){
+propensity <- function(data, surv_is_cox = T){
   
   if(surv_is_cox){
     mod <- glm(A ~ X, family = "binomial", data = data)
@@ -456,14 +454,21 @@ propensity <- function(A_of_interest = 1, data, surv_is_cox = T){
   }
   
   
-  predictions <- predict(object = mod, newdata = new_data)  
-  pi_a_1 <- mean(plogis(predictions))
-  pi_a_0 <- 1 - pi_a_1
-  props <- c(pi_a_0, pi_a_1)
-  names(props) <- c("pi_a_0", "pi_a_1")
+  predictions <- predict(object = mod, newdata = new_data) 
+  
+  p_a_1 <- plogis(predictions)
+  p_a_0 <- 1 - p_a_1
+  probs <- cbind(p_a_1, p_a_0)
+  colnames(probs) <- c("p_a_0", "p_a_1")
+  
+  pi_a_1 <- 1/p_a_1 * (get_A_values(data) == 1)
+  pi_a_0 <- 1/p_a_0 * (get_A_values(data) == 0)
+  propens <- cbind(pi_a_0, pi_a_1)
+  colnames(propens) <- c("pi_a_0", "pi_a_1")
+  
   coeff <- plogis(mod$coefficients)
   
-  output <- list(props, coeff)
+  output <- list('probs' = probs, 'propens' = propens, 'coeff' = coeff)
   return(output)
 }
 
@@ -474,7 +479,7 @@ estimate_martingales <- function(train_data, test_data = NA){
   mod_cum <- get_cum_hazard(working_model)
   mod_jump_times <- get_jump_times(mod_cum)
   mod_cum_baseline <- get_cum_baseline_hazard_times(mod_cum)
-  n_jump_times <- get_row_length(mod_cum) #This has to be changed to either length(mod_jump_times) or get_row_length(mod_cum)-1
+  n_jump_times <- get_row_length(mod_cum)
   beta_hat <- get_parameter_estimates(working_model)
   
   train_A <- get_A_values(train_data)
@@ -489,7 +494,7 @@ estimate_martingales <- function(train_data, test_data = NA){
   at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
   
   #Change in cumulative hazard per individual (rows) per stopping time (columns).
-  mod_dL <- mod_est_cum_haz[,-1] - mod_est_cum_haz[,-ncol(mod_est_cum_haz)]
+  mod_dL <- cbind(0, mod_est_cum_haz[,-1] - mod_est_cum_haz[,-ncol(mod_est_cum_haz)])
   
   #Estimating the change in counting process for each individual i dN_i(t) = I(T_i = t, Delta = 1):
   indicator_jump_time <- outer(T_obs, mod_jump_times, FUN = "==")
@@ -505,7 +510,7 @@ estimate_martingales <- function(train_data, test_data = NA){
   
   counting_process_plot <- 'plot'
   
-  res <- list(mod_dM = mod_dM, mod_dN = mod_dN, mod_dL = mod_dL, plot1 = counting_process_plot, N_t = cumulative_count_obs, L_t = cumulative_risk, jump_times = mod_jump_times )
+  res <- list(mod_dM = mod_dM, mod_dN = mod_dN, mod_dL = mod_dL, plot1 = counting_process_plot, N_t = cumulative_count_obs, L_t = cumulative_risk, jump_times = mod_jump_times, at_risk = at_risk)
   return(res)
 }
 
@@ -534,7 +539,7 @@ get_S_hats <- function(data, surv_is_cox = T){
   #Returning relevant figures from the model to estimate survival functions
   n <- get_row_length(data)
   cum_haz_matrix <- mod$cum
-  n_jumps <- get_row_length(cum_haz_matrix)-1
+  n_jumps <- get_row_length(cum_haz_matrix)
   jump_times <- get_jump_times(cum_haz_matrix)
   cum_haz <- get_cum_baseline_hazard_times(cum_haz_matrix)
   beta_hat <- get_parameter_estimates(mod)
@@ -566,7 +571,7 @@ get_K_hat <- function(data, surv_is_cox = T){
   
   surv_model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(X), data = data)
   cum <- get_cum_hazard(surv_model)
-  no_jumps <- get_row_length(cum)-1                   # Number of jumps T > t
+  no_jumps <- get_row_length(cum)                    # Number of jumps T > t
   tau <- get_jump_times(cum)                          # Jump times tau1, tau2,...,tau_no_jumps
   
   ######################################################################
@@ -586,7 +591,7 @@ get_K_hat <- function(data, surv_is_cox = T){
   
   #Jump times and cumulative baseline hazard:
   cum_cens <- get_cum_hazard(mod_cens)
-  no_jumps_cens <- get_row_length(cum_cens) - 1               #Number of jumps T > t
+  no_jumps_cens <- get_row_length(cum_cens)                   #Number of jumps T > t
   tau_cens <- get_jump_times(cum_cens)                        #Jump times tau_cens1, tau_cens2,...,tau_cens_no_jumps
   cumbasehaz_cens <- get_cum_baseline_hazard_times(cum_cens)  #Cumulative baseline hazard   Lambda0(tau0), Lambda0(tau1),...,Lambda0(tau_no_jumps)
   
@@ -611,8 +616,6 @@ get_K_hat <- function(data, surv_is_cox = T){
   for(i in 1:no_jumps){
     Khat[,i] = Khat_temp[,max((1:no_jumps_cens)[tau_cens<=tau[i]])]
   }
-  
-  Khat[is.na(Khat)] <- 1
   
   return(Khat)
 }

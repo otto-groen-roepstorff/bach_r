@@ -4,9 +4,9 @@
 #Generating data for testing estimators
 ################################################################
 n <- 500
-train_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(2), surv_is_cox = F,
+train_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(2), surv_is_cox = T,
                                      ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = T)
-test_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = F,
+test_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = T,
                                     ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = T)
 
 

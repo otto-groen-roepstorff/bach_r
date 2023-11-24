@@ -305,6 +305,158 @@ rowSums(dM/(Khat*Shat))
 
 
 
+########################################
+#Martingale estimation again again
+########################################
+n <- 1000
+test_data <- generate_survival_data(n, ba_t = 1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
+                                    ba_c = log(2), bx_c = 1, bz_c = 1, cens_is_cox = T)
+
+
+#Fitting model and returning beta estimates
+model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(X), data = test_data)
+beta_hat <- model$gamma
+
+
+#Returning jump times tau and cumulative baseline hazard cum_basehaz
+cum <- model$cum
+tau <- cum[,1]
+cum_basehaz <- cum[,2]
+K <- length(tau)
+
+
+#Calculating cumulative hazard
+cum_haz <- exp(cbind(test_data$A, test_data$X) %*% beta_hat) %*% cum_basehaz
+
+
+#Estimating survival function
+surv_func <- exp(-cum_haz)
+
+plot(tau,surv_func[1,], type = 'l', ylim = c(0,1))
+for (i in 1:49){
+  lines(tau, surv_func[i+1, ])
+}
+
+
+#Estimating change in cumulative hazard
+dL <- cbind(0,cum_haz[,-1] - cum_haz[,- (K)])
+
+#Determing at_risk
+at_risk <- outer(X = test_data$T_obs, Y = tau, FUN = ">=")
+
+
+#Determining dN
+indicator_jump_time <- outer(test_data$T_obs, tau, FUN = "==")
+indicator_uncensored <- test_data$Uncensored
+
+dN <- indicator_jump_time*indicator_uncensored
+
+
+#Determining dM
+dM <- dN - at_risk * dL
+
+
+surv_func <- exp(-cum_haz)
+
+plot(tau,cumsum(dM[1,]), type = 'l', ylim = c(-3,1.1))
+for (i in 2:n){
+  lines(tau, cumsum(dM[i, ]))
+}
+
+dM_cumsum <- dM %>% apply(FUN = cumsum, MARGIN = 1) %>% t()
+colnames(dM_cumsum) <- tau
+
+set.seed(1)
+n <- 100
+test_data <- generate_survival_data(n, ba_t = 1, bx_t = log(2), bz_t = log(2), surv_is_cox = F,
+                                    ba_c = log(2), bx_c = 1, bz_c = 1, cens_is_cox = T)
+
+martingales <- estimate_martingales(train_data = test_data)
+at_risk <- martingales$at_risk
+dN <- martingales$mod_dN
+dL <- martingales$mod_dL
+dM <- martingales$mod_dM
+tau <- martingales$jump_times
+
+
+
+plot(tau,cumsum(dM[1,]), type = 'l', ylim = c(-2,1), ylab = 'dM')
+for (i in 1:99){
+  lines(tau, cumsum(dM[i, ]))
+}
+
+dM_cumsum <- dM %>% apply(FUN = cumsum, MARGIN = 1) %>% t()
+mean(dM_cumsum[,ncol(dM_cumsum)])
+
+
+
+S_hats <- get_S_hats(test_data)
+dim(S_hats$Shat)
+View(S_hats$Shat)
+View(get_K_hat(test_data))
+
+
+
+
+set.seed(1)
+n <- 1000
+train_data <- generate_survival_data(n, ba_t = 1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
+                                    ba_c = log(2), bx_c = 1, bz_c = 1, cens_is_cox = T)
+
+
+working_model <- cox_naive_model(train_data)
+mod_cum <- get_cum_hazard(working_model)
+mod_jump_times <- get_jump_times(mod_cum)
+mod_cum_baseline <- get_cum_baseline_hazard_times(mod_cum)
+n_jump_times <- get_row_length(mod_cum)
+beta_hat <- get_parameter_estimates(working_model)
+
+train_A <- get_A_values(train_data)
+train_X <- get_X_values(train_data)
+#Jeg synes, at dette er ret suspekt - vi fitter baseline hazard på noget vi har estimeret det ud fra. Selvfølgelig bliver det meget pænt!!
+mod_est_cum_haz <- exp(cbind(train_A, train_X) %*% beta_hat) %*% mod_cum_baseline
+
+#List of observed times
+T_obs <- get_observed_times(train_data)
+
+#Generating at risk matrix. Notice the equality!
+at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
+
+#Change in cumulative hazard per individual (rows) per stopping time (columns).
+mod_dL <- cbind(0, mod_est_cum_haz[,-1] - mod_est_cum_haz[,-ncol(mod_est_cum_haz)])
+
+#Estimating the change in counting process for each individual i dN_i(t) = I(T_i = t, Delta = 1):
+indicator_jump_time <- outer(T_obs, mod_jump_times, FUN = "==")
+indicator_uncensored <- get_censor_status(train_data)
+
+mod_dN <- indicator_jump_time*indicator_uncensored
+
+cumulative_count_obs <- cumsum(colSums(mod_dN))
+
+cumulative_risk <-cumsum(colSums(at_risk*mod_dL))
+
+mod_dM <- mod_dN - at_risk*mod_dL
+
+counting_process_plot <- 'plot'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
