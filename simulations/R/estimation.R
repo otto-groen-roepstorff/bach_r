@@ -4,8 +4,8 @@
 #Generating data for testing estimators
 ################################################################
 n <- 1000
-test_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = T,
-                                       ba_c = log(2), bx_c = 1, bz_c = -1, cens_is_cox = T)
+test_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(2), surv_is_cox = F,
+                                       ba_c = log(2), bx_c = 1, bz_c = 1, cens_is_cox = T)
 
 test_model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(X), data = test_data)
 cum <- test_model$cum
@@ -97,6 +97,9 @@ get_K_hat <- function(data, surv_is_cox = T){
   for(i in 1:no_jumps){
     Khat[,i] = Khat_temp[,max((1:no_jumps_cens)[tau_cens<=tau[i]])]
   }
+  
+  Khat[is.na(Khat)] <- 1
+  
   return(Khat)
 }
 

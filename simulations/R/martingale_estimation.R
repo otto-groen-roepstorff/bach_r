@@ -3,11 +3,11 @@
 ################################################################
 #Generating data for testing estimators
 ################################################################
-n <- 100
-train_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = F,
-                                     ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = F)
+n <- 500
+train_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(2), surv_is_cox = F,
+                                     ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = T)
 test_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_is_cox = F,
-                                    ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = F)
+                                    ba_c = log(6), bx_c = 1, bz_c = -1, cens_is_cox = T)
 
 
 
@@ -91,10 +91,16 @@ dN_test <- matrix(data = as.numeric(T_obs_times_test == jump_times_test), nrow =
 #dM <- dN_test - at_risk_train*dL
 #plot(tau_train, colSums(dM), type = 'l')
 
+cum_haz_hat = matrix(NA, nrow = n, ncol = length(tau_test)) #Maybe this can also be vectorized??
+for(i in 1:length(tau_test)){
+  cum_haz_hat[,i] = (at_risk_train*dL)[,max((1:length(tau_train))[tau_train<=tau_test[i]])]
+}
+cum_haz_hat[is.na(cum_haz_hat)] <- 0
+
 plot(tau_test, cumsum(colSums(dN_test)))
-lines(tau_train, cumsum(colSums(at_risk_train*dL)), col = 'red')
+lines(tau_test, cumsum(colSums(cum_haz_hat)), col = 'red')
 
-
-
+dM_test <- dN_test - cum_haz_hat
+plot(tau_test, colSums(dM_test), type = 'l')
 
 

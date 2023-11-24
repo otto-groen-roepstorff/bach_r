@@ -501,7 +501,7 @@ estimate_martingales <- function(train_data, test_data = NA){
   
   cumulative_risk <-cumsum(colSums(at_risk*mod_dL))
   
-  mod_dM <- mod_dN - mod_dL
+  mod_dM <- mod_dN - at_risk*mod_dL
   
   counting_process_plot <- 'plot'
   
@@ -551,7 +551,7 @@ get_S_hats <- function(data, surv_is_cox = T){
   Shat_1 <- exp(-cumhaz1_hat)
   Shat_0 <- exp(-cumhaz0_hat)
   
-  return(list('Shat' = Shat, 'Shat_0' = Shat_0, 'Shat_1' = Shat_1))
+  return(list('Shat' = Shat, 'Shat_0' = Shat_0, 'Shat_1' = Shat_1, 'beta_hat' = beta_hat))
 }
 
 
