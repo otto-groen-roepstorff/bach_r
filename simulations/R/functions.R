@@ -432,10 +432,13 @@ P_treatment_extend_survival <- function(data){
   delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])
   
   integrand <- t(t(Shat_1 * Shat_0) * delta_cumbasehaz)
+  multiplier <- exp(cbind(0, X) %*% beta_hat)
   
   res <- exp(cbind(0, X) %*% beta_hat) * rowSums(integrand)
   
-  return(res)
+  res_list <- list('res' = res, 'delta_cumbasehaz' = delta_cumbasehaz, 'integrand' = integrand, 'multiplier' = multiplier)
+  
+  return(res_list)
 }
 
 

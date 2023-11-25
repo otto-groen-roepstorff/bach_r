@@ -1,37 +1,38 @@
 
 
-p1_est <- matrix(data = NA, nrow = 100, ncol = 1)
-p2_est <- matrix(data = NA, nrow = 100, ncol = 1)
-p3_est <- matrix(data = NA, nrow = 100, ncol = 1)
-estimates <- matrix(data = NA, nrow = 100, ncol = 1)
-
 test <- function(){
   
 n <- 1000
 #test_data <- generate_survival_data(n, ba_t = 1, bx_t = 1, bz_t = log(6), surv_is_cox = F,
 #                                    ba_c = log(2), bx_c = 1, bz_c = -1, cens_is_cox = F)
+train_data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
+                                     ba_c = 1, bx_c = log(2), bz_c = 1, cens_is_cox = T)
 
-train_data <- generate_survival_data(n, ba_t = 0, bx_t = 1, bz_t = log(2), surv_is_cox = T,
-                                     ba_c = log(2), bx_c = 1, bz_c = -1, cens_is_cox = F)
-
-#Survival function estimates
-S_hats <- get_S_hats(train_data)
-S_hat <- S_hats$Shat
-S_hat0 <- S_hats$Shat_0
-S_hat1 <- S_hats$Shat_1
-betahat <- S_hats$beta_hat
-
-
-#Censoring function estimate
-K_C_hat <- get_K_hat(train_data, surv_is_cox = T)
+max_time <- 4
 
 ################################################
 #Martingales
 ################################################
-martingale_estimates <- estimate_martingales(test_data = test_data, train_data = train_data)
+martingale_estimates <- estimate_martingales(train_data = train_data)
 jump_times <- martingale_estimates$jump_times
-dM <- martingale_estimates$mod_dM
-dL <- martingale_estimates$mod_dL
+jump_times_to_keep <- sum(jump_times <= max_time)
+
+dM <- martingale_estimates$mod_dM[,1:jump_times_to_keep]
+dL <- martingale_estimates$mod_dL[,1:jump_times_to_keep]
+
+
+
+
+#Survival function estimates
+S_hats <- get_S_hats(train_data)
+S_hat <- S_hats$Shat[,1:jump_times_to_keep]
+S_hat0 <- S_hats$Shat_0[,1:jump_times_to_keep]
+S_hat1 <- S_hats$Shat_1[,1:jump_times_to_keep]
+betahat <- S_hats$beta_hat
+
+
+#Censoring function estimate
+K_C_hat <- get_K_hat(train_data, surv_is_cox = T)[,1:jump_times_to_keep]
 
 
 #Propensity scores
@@ -47,26 +48,43 @@ p1 <- prop_0 * rowSums(S_hat1/K_C_hat*dM)
 
 
 #Part 2
-p2 <- P_treatment_extend_survival(train_data)
+p_treat_list <- P_treatment_extend_survival(train_data)
+p2 <- p_treat_list$res
 
 #Part 3
 inner_integrand <- dM/(S_hat * K_C_hat)
 inner_integral <- t(apply(inner_integrand, MARGIN = 1, FUN = cumsum))
 
 
-tS <- cbind(0,(S_hat0[,-1] - S_hat0[,-ncol(S_hat0)]))
-#tt <- jump_times[-1] - jump_times[-length(jump_times)]
-#S_hat0_deriv <- cbind(0, t(t(tS)/tt))
+p3 <- prop_sum * p_treat_list$multiplier * rowSums(p_treat_list$integrand[,1:jump_times_to_keep] * inner_integral)
 
-outer_integrand <- inner_integral * tS * S_hat1
-outer_integral <- rowSums(outer_integrand)
 
-p3 <- prop_sum*outer_integral
+print('Run done')
 
-return(mean(p1+p2+p3))
+return(mean(p1+p2-p3))
+}
+res_T_T <- replicate(10, test())
+
+
+
+test_2 <- function(){
+  n <- 1000
+  train_data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
+                                       ba_c = -1, bx_c = log(2), bz_c = 1, cens_is_cox = T)
+  
+  p_treat_list <- P_treatment_extend_survival(train_data)
+  p2 <- p_treat_list$res
 }
 
-res <- replicate(100, test())
+test_2_reps <- replicate(1000, test_2())
+
+
+
+res_T_F <- replicate(250, test())
+res_F_T <- replicate(250, test())
+res_F_F <- replicate(250, test())
+
+
 
 
 integrand <- t(apply((dM/(S_hat*K_C_hat)), MARGIN = 1, FUN = cumsum))
@@ -79,7 +97,7 @@ estimates[i,] <- p1 + p2 + p3
 
 
 
-}
+
 par(mfrow = c(1,1))
 hist(estimates)
 par(mfrow = c(1,3))

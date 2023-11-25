@@ -368,7 +368,7 @@ colnames(dM_cumsum) <- tau
 
 set.seed(1)
 n <- 100
-test_data <- generate_survival_data(n, ba_t = 1, bx_t = log(2), bz_t = log(2), surv_is_cox = F,
+test_data <- generate_survival_data(n, ba_t = 1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
                                     ba_c = log(2), bx_c = 1, bz_c = 1, cens_is_cox = T)
 
 martingales <- estimate_martingales(train_data = test_data)
@@ -380,7 +380,7 @@ tau <- martingales$jump_times
 
 
 
-plot(tau,cumsum(dM[1,]), type = 'l', ylim = c(-2,1), ylab = 'dM')
+plot(tau,cumsum(dM[1,]), type = 'l', ylim = c(-3,1), ylab = 'dM')
 for (i in 1:99){
   lines(tau, cumsum(dM[i, ]))
 }
@@ -450,6 +450,81 @@ counting_process_plot <- 'plot'
 
 
 
+
+
+############################################################
+#                 Plotting functions
+############################################################
+set.seed(1)
+n <- 100
+data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
+                                     ba_c = log(2), bx_c = 1, bz_c = 1, cens_is_cox = T)
+
+par(mfrow = c(1,4))
+df1 <- data[,!names(data) %in% c("X", "Z", "Uncensored")]
+df2 <- pivot_longer(data = df1, cols = c("T_true", "C", "T_obs"), names_to = "Source", )
+df2$A <- as.factor(df2$A)
+
+ggplot(df2)+ geom_density(aes(value, fill = A), alpha = 0.4) + facet_wrap(~Source)
+
+
+P_T0_T1 <- P_treatment_extend_survival(data)$res
+hist(P_T0_T1)
+par(mfrow = c(3,2))
+
+props <- propensity(data)
+
+
+martingales <- estimate_martingales(train_data = data)
+at_risk <- martingales$at_risk
+dN <- martingales$mod_dN
+dL <- martingales$mod_dL
+dM <- martingales$mod_dM
+tau <- martingales$jump_times
+
+
+plot(tau,cumsum(dN[1,]), type = 'l', ylab = 'Counting processes')
+for (i in 2:100){
+  lines(tau, cumsum(dN[i, ]))
+}
+
+
+plot(tau,cumsum((at_risk*dL)[1,]), type = 'l', ylim = c(0,3), ylab = 'Cumulative hazards')
+for (i in 2:100){
+  lines(tau, cumsum((at_risk*dL)[i, ]))
+}
+
+
+plot(tau,cumsum(dM[1,]), type = 'l', ylim = c(-2,1), ylab = 'Martingales')
+for (i in 2:100){
+  lines(tau, cumsum(dM[i, ]))
+}
+
+
+
+S_hats <- get_S_hats(data)
+S_hat <- S_hats$Shat
+S_hat0 <- S_hats$Shat_0
+S_hat1 <- S_hats$Shat_1
+
+plot(tau, S_hat[1,], type = 'l', ylim = c(0,1), ylab = 'Survival function')
+for (i in 2:100){
+  lines(tau, S_hat[i,])
+}
+
+plot(tau, S_hat1[1,], type = 'l', ylim = c(0,1), ylab = 'Survival function')
+lines(tau, S_hat0[1,], col = 'red')
+for (i in 2:100){
+  lines(tau, S_hat1[i,])
+  lines(tau, S_hat0[i,], col = 'red')
+}
+
+
+K_C_hat <- get_K_hat(data)
+plot(tau, K_C_hat[1,], type = 'l', ylab = 'K_C')
+for (i in 2:100){
+  lines(tau, K_C_hat[i,])
+}
 
 
 
