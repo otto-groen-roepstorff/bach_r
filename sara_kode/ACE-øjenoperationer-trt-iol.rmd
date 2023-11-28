@@ -1,0 +1,428 @@
+---
+title: "ACE - øjenoperationer"
+output: html_document
+date: "2023-10-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(MASS)
+library(simsurv)
+library(mvtnorm)
+library(cubature)
+library(pracma)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(survival)
+library(timereg)
+library(mice)
+
+
+DATA = øjendata
+View(DATA)
+
+statusC = 1- DATA$glau_eye_single #Indikator for om øjet er blevet censoreret
+statusC
+
+```
+
+
+
+## S   Survival function
+
+```{r}
+
+fit = cox.aalen(Surv(time,glau_eye_single==1)~prop(factor(ster_regi))+prop(factor(iol_single)),
+                max.time=2000,basesim=1,data=DATA) 
+fit$cum
+M = dim(fit$cum)[1] - 1 # Number of events for T*, -1 because the first element in fit$cum is 0
+M
+tau = fit$cum[,1][-1] # Jumping times, tau_1,...,tau_K
+tau
+basehaz = fit$cum[,2] # Cumulative baseline hazard, Lambda(tau_0),...,Lambda(tau_M)
+basehaz
+betahat = fit$gamma
+betahat
+Lambdahat = (exp(cbind(DATA$ster_regi, DATA$iol_single)%*%c(betahat))%*%c(basehaz))[,2:(M + 1)] # Cumulative hazard (ikke i springtid 0), 388 x 30 matrix
+Shat = exp(-Lambdahat) # Survival function # S(t | trt, iol) i springtiderne (ikke i 0) for alle individer. 388 x 30 matrix
+Shat0 = exp(-exp(cbind(0,DATA$iol_single)%*%c(betahat))%*%c(basehaz))[,2:(M + 1)] # S(t|trt=0,iol) i springtiderne (ikke i 0) for alle individer. 388 x 30 matrix
+Shat1 = exp(-exp(cbind(1,DATA$iol_single)%*%c(betahat))%*%c(basehaz))[,2:(M + 1)] # S(t|trt=1,iol) i springtiderne (ikke i 0) for alle individer. 388 x 30 matrix
+dLambdahat = cbind(Lambdahat[,1],Lambdahat[,2:M]-Lambdahat[,-M]) # 388 x 30 matrix
+dim(Shat0)
+dim(Shat)
+dim(dLambdahat)
+
+```
+
+## K   Censoring data
+
+```{r}
+
+fitC = cox.aalen(Surv(time,statusC==1)~prop(factor(ster_regi))+prop(factor(iol_single)),max.time=2000,basesim=1,data=DATA)
+#stime = fit$cum[,1] # Jumping times of T* including 0
+fitC$gamma
+K.c = dim(fitC$cum)[1] - 1 # Number of events for C
+K.c
+t.c= fitC$cum[,1][-1] # Jumping times for C
+t.c
+Khat = exp(-(exp(cbind(DATA$ster_regi, DATA$iol_single)%*%c(fitC$gamma))%*%c(fitC$cum[,2])))
+
+
+
+##finding K in jumping times for S (tau). Taking the column from Khat corresponding to the largest jumping time for C before the i'th jumping time for S
+##since Khat is constant between the jumpingtimes this is the same as evaluating Khat in the jumping times for S
+K_in_tau = matrix(NA, nrow = 388, ncol = M)
+for(i in 1:M){
+  K_in_tau[,i] = Khat[,max((1:K.c)[t.c<=tau[i]])]
+}
+dim(K_in_tau)
+
+
+## For trt = 1 ##
+Khat_1 = exp(-(exp(cbind(1, DATA$iol_single)%*%c(fitC$gamma))%*%c(fitC$cum[,2])))
+K_in_tau_1 = matrix(NA, nrow = 388, ncol = M)
+for(i in 1:M){
+  K_in_tau_1[,i] = Khat_1[,max((1:K.c)[t.c<=tau[i]])]
+}
+dim(K_in_tau_1)
+
+## For trt = 0 ##
+Khat_0 = exp(-(exp(cbind(0, DATA$iol_single)%*%c(fitC$gamma))%*%c(fitC$cum[,2])))
+K_in_tau_0 = matrix(NA, nrow = 388, ncol = M)
+for(i in 1:M){
+  K_in_tau_0[,i] = Khat_0[,max((1:K.c)[t.c<=tau[i]])]
+}
+
+```
+
+
+
+## Logistic regression
+
+```{r}
+##Estimation af P(trt | iol) med logistisk regression
+P_et_hat = predict(glm(ster_regi ~ iol_single, data = DATA, family = binomial(link = "logit")), 
+               newdata = DATA, type = "response")
+P_nul_hat = 1 - P_et_hat
+
+
+
+## For further use
+time <- DATA$time
+ster_regi <- DATA$ster_regi
+iol_single <- DATA$iol_single
+status <- DATA$glau_eye_single
+
+
+```
+
+
+## Finding dM
+
+```{r}
+
+at.risk = matrix(NA, nrow = 388, ncol = M)
+dN = matrix(NA, nrow = 388, ncol = M)
+dM = matrix(NA, nrow = 388, ncol = M)
+
+for (j in 1:M){
+  for(i in 1:388){
+    at.risk[i,j] = as.numeric(time[i]>=tau[j])
+    dN[i,j] = as.numeric(time[i]==tau[j])*as.numeric(status[i]==1)
+    dM[i,j] = dN[i,j]-at.risk[i,j]*dLambdahat[i,j]
+  }
+}
+
+```
+
+
+
+## Finding psi_1
+
+```{r}
+
+terms_in_int_1 = matrix(NA, nrow = 388, ncol = M)
+sum_1 = matrix(NA, nrow = 388, ncol = M)
+X_1 = matrix(NA, nrow = 388, ncol = M)
+psi_1 = matrix(NA, nrow = 1, ncol = M)
+
+for (j in 1:M){
+  for(i in 1:388){
+    terms_in_int_1[i,j] = 1/(Shat1[i,j]*K_in_tau_1[i,j])*dM[i,j]
+    sum_1[i,j] = sum(terms_in_int_1[i,1:j])
+    X_1[i,j] = -(ster_regi[i] / P_et_hat[i])*Shat1[i,j]*sum_1[i,j] + Shat1[i,j]
+  }
+  psi_1[1,j] = mean(X_1[,j], na.rm=TRUE)
+}
+psi_1
+
+
+terms_in_int_1 = matrix(NA, nrow = 388, ncol = M)
+sum_1 = matrix(NA, nrow = 388, ncol = M)
+X_1 = matrix(NA, nrow = 388, ncol = M)
+psi_1_test = matrix(NA, nrow = 1, ncol = M)
+
+for (j in 1:M){
+  for(i in 1:388){
+    terms_in_int_1[i,j] = 1/(Shat[i,j]*K_in_tau[i,j])*dM[i,j]
+    sum_1[i,j] = sum(terms_in_int_1[i,1:j])
+    X_1[i,j] = -(ster_regi[i] / P_et_hat[i])*Shat[i,j]*sum_1[i,j] + Shat1[i,j]
+  }
+  psi_1_test[1,j] = mean(X_1[,j], na.rm=TRUE)
+}
+psi_1_test
+
+
+```
+
+
+
+## Finding psi_0
+
+```{r}
+
+terms_in_int_0 = matrix(NA, nrow = 388, ncol = M)
+sum_0 = matrix(NA, nrow = 388, ncol = M)
+X_0 = matrix(NA, nrow = 388, ncol = M)
+psi_0 = matrix(NA, nrow = 1, ncol = M)
+
+for (j in 1:M){
+  for(i in 1:388){
+    terms_in_int_0[i,j] = 1/(Shat0[i,j]*K_in_tau_0[i,j])*dM[i,j]
+    sum_0[i,j] = sum(terms_in_int_0[i,1:j])
+    X_0[i,j] = -((1-ster_regi[i]) / P_nul_hat[i])*Shat0[i,j]*sum_0[i,j] + Shat0[i,j]  ##indikator: 1 - ster_regi
+  }
+  psi_0[1,j] = mean(X_0[,j], na.rm=TRUE)
+}
+psi_0
+
+
+terms_in_int_0 = matrix(NA, nrow = 388, ncol = M)
+sum_0 = matrix(NA, nrow = 388, ncol = M)
+X_0 = matrix(NA, nrow = 388, ncol = M)
+psi_0_test = matrix(NA, nrow = 1, ncol = M)
+
+for (j in 1:M){
+  for(i in 1:388){
+    terms_in_int_0[i,j] = 1/(Shat[i,j]*K_in_tau[i,j])*dM[i,j]
+    sum_0[i,j] = sum(terms_in_int_0[i,1:j])
+    X_0[i,j] = -((1-ster_regi[i]) / P_nul_hat[i])*Shat[i,j]*sum_0[i,j] + Shat0[i,j] ##indikator: 1 - ster_regi
+  }
+  psi_0_test[1,j] = mean(X_0[,j], na.rm=TRUE)
+}
+psi_0_test
+
+
+```
+
+
+## The difference
+
+```{r}
+
+psi_hat = psi_1 - psi_0
+psi_hat
+
+psi_hat_test = psi_1_test - psi_0_test
+
+plot(tau, psi_hat, type = "s")
+plot(tau, psi_hat_test, type = "s")
+
+```
+
+
+
+
+
+## Variance
+
+### Influence function + variance
+```{r}
+
+
+EIF_1 = matrix(NA, nrow = 388, ncol = M)
+EIF_0 = matrix(NA, nrow = 388, ncol = M)
+EIF_2 = matrix(NA, nrow = 388, ncol = M)
+SD = matrix(NA, nrow = 1, ncol = M)
+for (j in 1:M){
+  for (i in 1:388){
+    EIF_1[i,j] = X_1[i,j] - psi_1[j]
+    EIF_0[i,j] = X_0[i,j] - psi_0[j]
+    EIF_2[i,j] = (EIF_1[i,j] - EIF_0[i,j])^2
+  }
+  SD[1,j] = sqrt(mean(EIF[,j], na.rm=TRUE)/388)
+}
+
+
+
+```
+
+
+```{r}
+
+
+lower_bound <- psi_hat - 1.96 * SD
+upper_bound <- psi_hat + 1.96 * SD
+lower_bound
+upper_bound
+
+##Ikke pænt plot
+#plot(tau, psi_hat, type = "s", ylim = c(min(lower_bound), max(upper_bound)))
+#lines(tau, lower_bound, col = "red", lty = 2)
+#lines(tau, upper_bound, col = "red", lty = 2)
+
+
+
+##Pænt plot
+data1 <- data.frame(tau = c(tau), psi_hat = c(psi_hat), lower_bound = c(lower_bound), upper_bound = c(upper_bound))
+View(data1)
+
+
+# The plot
+ggplot(data1, aes(x = tau, y = psi_hat)) +
+  geom_line(color = "blue") +  # Plot the main line
+  geom_ribbon(aes(ymin = lower_bound, ymax = upper_bound), fill = "lightblue", alpha = 0.5) +
+  labs(x = "Time", y = "Phi_hat", title = "Phi_hat with confidence bands") +
+  theme_bw()
+
+```
+
+
+
+
+
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+```{r}
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Med Torben
+
+```{r}
+## finding X
+X_1 = matrix(NA, nrow = 388, ncol = M)
+X_0 = matrix(NA, nrow = 388, ncol = M)
+for (j in 1:M){
+  for (i in 1:388)
+  {
+    X_1[i,j] = -(ster_regi[i] / P_et_hat[i])*Shat1[i,j]*sum_1[i,j]
+              + Shat1[i,j]
+    X_0[i,j] = -(ster_regi[i] / P_et_hat[i])*Shat1[i,j]*sum_1[i,j]
+  }
+}
+X_1
+mean(X_0[,10], na.rm=TRUE)
+
+
+
+psi_10 = matrix(NA, nrow = 1, ncol = M)
+for (j in 1:M){
+  psi_10[1,j] = mean(X_0[,j], na.rm=TRUE)
+}
+psi_10
+
+
+
+## finding psi^hat in all tau
+
+psi_1 = matrix(NA, nrow = 1, ncol = M)
+psi_11 = matrix(NA, nrow = 1, ncol = M)
+for (j in 1:M){
+  psi_1[1,j] = mean(X_1[,j], na.rm=TRUE)
+  psi_11[1,j] = mean(Shat1[,j], na.rm=TRUE)
+}
+psi_1
+psi_s = psi_11 - psi_10
+
+
+```
+
+
+```{r}
+
+
+
+```
+
+
+```{r}
+
+
+
+```
+
+
+```{r}
+
+
+
+```
+
+
+```{r}
+
+
+
+```
+
+
+```{r}
+
+
+
+```
+
+
+```{r}
+
+
+
+```
+
+
+```{r}
+
+
+
+```
+
