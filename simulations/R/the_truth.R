@@ -47,7 +47,7 @@ theoretical_value_11 <- function(beta_hat, upper_time){
   
   return(res)
 }
-beta_hat <- c(0,log(2))
+beta_hat <- c(-1,log(2))
 theoretical_value_11(beta_hat, 5)
 
 

@@ -1,5 +1,94 @@
 
 
+
+n <- 1000
+data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
+                                     ba_c = 1, bx_c = log(2), bz_c = 1)
+EIF(data, max_time = 1)
+
+
+
+model <- oracle_model(data)
+model_cov <- get_oracle_covar(data)
+
+
+n <- get_row_length(data)
+cum_haz_matrix <- get_cum(model)
+n_jumps <- get_row_length(cum_haz_matrix)
+jump_times <- get_jump_times(cum_haz_matrix)
+jump_times_to_keep <- sum(jump_times <= max_time)
+
+cum_haz <- get_cum_base_haz(cum_haz_matrix)
+beta_hat <- get_param_est(model)
+
+covar_true <- model_cov
+
+#creating counterfactual datasets
+covar_A1 <- model_cov %>% mutate(A = 1)
+covar_A0 <- model_cov %>% mutate(A = 0)
+
+
+cumhaz_hat <- predict_cox.aalen(covar = covar_true, betaHat = beta_hat, cum_base_haz = cum_haz)[,1:jump_times_to_keep]
+cumhaz1_hat <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_haz)[,1:jump_times_to_keep]
+cumhaz0_hat <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_haz)[,1:jump_times_to_keep]
+
+
+#Estimating survival function
+Shat_1 <- exp(-cumhaz1_hat)
+Shat_0 <- exp(-cumhaz0_hat)
+
+
+delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])[1:jump_times_to_keep]
+
+integrand <- t(t(Shat_1 * Shat_0) * delta_cumbasehaz)
+multiplier <- exp(data.matrix(covar_A0) %*% beta_hat)
+
+res <- multiplier * rowSums(integrand)
+
+
+
+
+
+
+
+
+
+
+
+
+
+P10 <- P_treatment_extend_survival(oracle_model(data), max_time = 2, get_oracle_covar(data))
+
+EIF_test <- EIF(data, T_corr = T, Cens_corr = T, max_time = 2)
+mean(EIF_test[[4]])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ################################################################
 #Generating data for testing estimators
 ################################################################

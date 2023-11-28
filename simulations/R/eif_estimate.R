@@ -5,8 +5,10 @@ test <- function(){
 n <- 1000
 #test_data <- generate_survival_data(n, ba_t = 1, bx_t = 1, bz_t = log(6), surv_is_cox = F,
 #                                    ba_c = log(2), bx_c = 1, bz_c = -1, cens_is_cox = F)
-train_data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
-                                     ba_c = 1, bx_c = log(2), bz_c = 1, cens_is_cox = T)
+set.seed(1)
+
+train_data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
+                                     ba_c = 1, bx_c = log(2), bz_c = 1)
 
 max_time <- 2
 
@@ -61,58 +63,18 @@ p3 <- prop_sum * p_treat_list$multiplier * rowSums(p_treat_list$integrand[,1:jum
 
 print('Run done')
 
-return(mean(p1+p2-p3))
+res <- list('p1_mean' = mean(p1), 'p2_mean' = mean(p2), 'p3_mean' = mean(p3), 'res' = mean(p1+p2-p3))
+
+return(res)
 }
 
-res_T_T <- replicate(10, test())
+res_T_T <- replicate(1, test())
 mean(res_T_T)
 beta_hat <- c(-1,log(2))
 theoretical_value_11(beta_hat, 2)
 
+correct_res_T_T
 
-test_2 <- function(){
-  n <- 1000
-  train_data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
-                                       ba_c = -1, bx_c = log(2), bz_c = 1, cens_is_cox = T)
-  
-  p_treat_list <- P_treatment_extend_survival(train_data)
-  p2 <- p_treat_list$res
-}
+c(theoretical_value_11(beta_hat, 2)-1.96*sd(res_T_T_100), theoretical_value_11(beta_hat, 2)+1.96*sd(res_T_T_100))
 
-test_2_reps <- replicate(10, test_2())
-
-
-
-
-
-
-
-
-
-
-
-res_T_F <- replicate(250, test())
-res_F_T <- replicate(250, test())
-res_F_F <- replicate(250, test())
-
-
-
-
-integrand <- t(apply((dM/(S_hat*K_C_hat)), MARGIN = 1, FUN = cumsum))
-
-p3 <- (pi_a_0 + pi_a_1) * mean(exp(betahat[2] * test_data$X) * rowSums(integrand*S_hat0*S_hat1*dL))
-p3_est[i,] <- p3
-
-
-estimates[i,] <- p1 + p2 + p3
-
-
-
-
-par(mfrow = c(1,1))
-hist(estimates)
-par(mfrow = c(1,3))
-hist(p1_est)
-hist(p2_est)
-hist(p3_est)
 

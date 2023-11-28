@@ -201,7 +201,7 @@ estimate_martingales <- function(model, full_data, model_cov, corr_model = T){
   mod_cum <- get_cum(working_model)
   mod_jump_times <- get_jump_times(cum_haz_matrix = mod_cum)
   mod_cum_baseline <- get_cum_base_haz(mod_cum)
-  n_jump_times <- get_row_length(mod_jump_times)
+  n_jump_times <- length(mod_jump_times)
   beta_hat <- get_param_est(working_model)
   
   
@@ -295,7 +295,7 @@ P_treatment_extend_survival <- function(model, max_time, model_cov){
   delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])[1:jump_times_to_keep]
   
   integrand <- t(t(Shat_1 * Shat_0) * delta_cumbasehaz)
-  multiplier <- exp(data.matrix(model_cov) %*% beta_hat)
+  multiplier <- exp(data.matrix(covar_A0) %*% beta_hat)
   
   res <- multiplier * rowSums(integrand)
   
@@ -326,7 +326,7 @@ get_K_hat <- function(data, model, corr_model = T){
   ######################################################################
   #Fitting model for censoring distribution
   if(corr_model){
-    mod_cens <-  oracle_cens_model(data)
+    mod_cens <- oracle_cens_model(data)
     covar <- get_oracle_cens_covar(data)
   } else {
     mod_cens <- non_oracle_cens_model(data)
@@ -382,10 +382,10 @@ EIF <- function(data, T_corr = T, Cens_corr = T, max_time = 5){
   
   
   #martingales
-  martingale_estimates_1 <- estimate_martingales(T_model,  full_data = data, model_cov = T_model_cov)
-  martingale_estimates <- estimate_martingales_old(data)
-  mean(martingale_estimates$mod_dL == martingale_estimates_1$mod_d)
-  View(martingale_estimates_1)
+  martingale_estimates <- estimate_martingales(T_model,  full_data = data, model_cov = T_model_cov)
+  #martingale_estimates <- estimate_martingales_old(data)
+  #mean(martingale_estimates$mod_dL == martingale_estimates_1$mod_d)
+  #View(martingale_estimates_1)
   jump_times <- martingale_estimates$jump_times
   jump_times_to_keep <- sum(jump_times <= max_time)
   
@@ -428,7 +428,7 @@ EIF <- function(data, T_corr = T, Cens_corr = T, max_time = 5){
   
   p3 <- prop_sum * p_treat_list$multiplier * rowSums(p_treat_list$integrand[,1:jump_times_to_keep] * inner_integral)
   
-  output <- list(p1, p2, p3, est = mean(p1+p2+p3))
+  output <- list(p1, p2, p3, est = mean(p1+p2-p3))
   return(output)
 }
 
