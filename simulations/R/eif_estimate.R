@@ -8,7 +8,7 @@ n <- 1000
 train_data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
                                      ba_c = 1, bx_c = log(2), bz_c = 1, cens_is_cox = T)
 
-max_time <- 4
+max_time <- 2
 
 ################################################
 #Martingales
@@ -48,7 +48,7 @@ p1 <- prop_0 * rowSums(S_hat1/K_C_hat*dM)
 
 
 #Part 2
-p_treat_list <- P_treatment_extend_survival(train_data)
+p_treat_list <- P_treatment_extend_survival(train_data, max_time = max_time)
 p2 <- p_treat_list$res
 
 #Part 3
@@ -63,8 +63,11 @@ print('Run done')
 
 return(mean(p1+p2-p3))
 }
-res_T_T <- replicate(10, test())
 
+res_T_T <- replicate(10, test())
+mean(res_T_T)
+beta_hat <- c(-1,log(2))
+theoretical_value_11(beta_hat, 2)
 
 
 test_2 <- function(){
@@ -76,7 +79,15 @@ test_2 <- function(){
   p2 <- p_treat_list$res
 }
 
-test_2_reps <- replicate(1000, test_2())
+test_2_reps <- replicate(10, test_2())
+
+
+
+
+
+
+
+
 
 
 

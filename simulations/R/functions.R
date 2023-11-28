@@ -109,6 +109,7 @@ generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), bz_t = log(2
   }
   
   a <- rbinom(n, 1, prop_a) 
+  a_fake <- rbinom(n, 1, prop_a) 
   
   if(x_cont){
     x <- runif(n, min = min(x_range), max = max(x_range))
@@ -145,7 +146,7 @@ generate_survival_data <- function(n, ba_t = log(2), bx_t = log(2), bz_t = log(2
   #Status
   delta <- surv_t < cens_t
   
-  return(data.frame(T_true = surv_t, C = cens_t, T_obs = t_obs, Uncensored = delta, X = x, A = a, Z = z))
+  return(data.frame(T_true = surv_t, C = cens_t, T_obs = t_obs, Uncensored = delta, X = x, A = a, Z = z, A_fake = a_fake))
 }
 
 
@@ -408,28 +409,30 @@ showcase_oracle_not_better <- function(n = 400, treatment_effect = log(2),
 #Estimating P(T1 > T0 | W)
 
 
-P_treatment_extend_survival <- function(data){
+P_treatment_extend_survival <- function(data, max_time){
   mod <- cox.aalen_naive_model(data)
   n <- get_row_length(data)
   cum_haz_matrix <- mod$cum
   n_jumps <- get_row_length(cum_haz_matrix)
   jump_times <- get_jump_times(cum_haz_matrix)
+  jump_times_to_keep <- sum(jump_times <= max_time)
+  
   cum_haz <- get_cum_baseline_hazard_times(cum_haz_matrix)
   beta_hat <- get_parameter_estimates(mod)
   A <- get_A_values(data)
   X <- get_X_values(data)
   #Z <- get_Z_values(data)
   
-  cumhaz_hat <- predict_cox.aalen(A = A, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
-  cumhaz1_hat <- predict_cox.aalen(A = 1, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
-  cumhaz0_hat <- predict_cox.aalen(A = 0, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)
+  cumhaz_hat <- predict_cox.aalen(A = A, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)[,1:jump_times_to_keep]
+  cumhaz1_hat <- predict_cox.aalen(A = 1, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)[,1:jump_times_to_keep]
+  cumhaz0_hat <- predict_cox.aalen(A = 0, W = X, betaHat = beta_hat, cum_base_haz = cum_haz, n_jumps = n_jumps)[,1:jump_times_to_keep]
   
   #Estimating survival function
   Shat_1 <- exp(-cumhaz1_hat)
   Shat_0 <- exp(-cumhaz0_hat)
   
   
-  delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])
+  delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])[1:jump_times_to_keep]
   
   integrand <- t(t(Shat_1 * Shat_0) * delta_cumbasehaz)
   multiplier <- exp(cbind(0, X) %*% beta_hat)

@@ -456,16 +456,17 @@ counting_process_plot <- 'plot'
 #                 Plotting functions
 ############################################################
 set.seed(1)
-n <- 100
-data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
-                                     ba_c = log(2), bx_c = 1, bz_c = 1, cens_is_cox = T)
+n <- 1000
+data <- generate_survival_data(n, ba_t = 0, bx_t = log(2), bz_t = log(2), surv_is_cox = T,
+                                     ba_c = 1, bx_c = 0, bz_c = 1, cens_is_cox = T, x_cont = F, x_vals = c(0,1,2,3))
 
 par(mfrow = c(1,4))
-df1 <- data[,!names(data) %in% c("X", "Z", "Uncensored")]
+df1 <- data[,!names(data) %in% c( "Z", "Uncensored")]
 df2 <- pivot_longer(data = df1, cols = c("T_true", "C", "T_obs"), names_to = "Source", )
 df2$A <- as.factor(df2$A)
-
-ggplot(df2)+ geom_density(aes(value, fill = A), alpha = 0.4) + facet_wrap(~Source)
+df3 <- df2 %>% filter(Source == "T_true")
+df3
+ggplot(df3)+ geom_density(aes(value, fill = A), alpha = 0.4) + facet_wrap(~X)
 
 
 P_T0_T1 <- P_treatment_extend_survival(data)$res

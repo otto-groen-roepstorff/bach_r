@@ -15,7 +15,7 @@ test_data <- generate_survival_data(n, ba_t = 1, bx_t = -1, bz_t = log(6), surv_
 #Fitting models
 ################################################################
 
-train_model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(X), data = train_data)
+train_model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(Z*X) + prop(A_fake) + prop(A_fake*A), data = train_data)
 test_model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(X), data = test_data)
 
 
