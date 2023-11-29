@@ -5,12 +5,10 @@ test <- function(){
 n <- 1000
 #test_data <- generate_survival_data(n, ba_t = 1, bx_t = 1, bz_t = log(6), surv_is_cox = F,
 #                                    ba_c = log(2), bx_c = 1, bz_c = -1, cens_is_cox = F)
-set.seed(1)
-
-train_data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
+train_data <- generate_survival_data(n, ba_t = 0, bx_t = log(6), bz_t = log(2),
                                      ba_c = 1, bx_c = log(2), bz_c = 1)
 
-max_time <- 2
+max_time <- 100
 
 ################################################
 #Martingales
@@ -65,16 +63,16 @@ print('Run done')
 
 res <- list('p1_mean' = mean(p1), 'p2_mean' = mean(p2), 'p3_mean' = mean(p3), 'res' = mean(p1+p2-p3))
 
-return(res)
+return(mean(p2))
 }
 
-res_T_T <- replicate(1, test())
+res_T_T <- replicate(50, test())
 mean(res_T_T)
 beta_hat <- c(-1,log(2))
 theoretical_value_11(beta_hat, 2)
 
 correct_res_T_T
 
-c(theoretical_value_11(beta_hat, 2)-1.96*sd(res_T_T_100), theoretical_value_11(beta_hat, 2)+1.96*sd(res_T_T_100))
+between(c(0.7070660870-1.96*sd(res_T_T), 0.7070660870+1.96*sd(res_T_T))
 
 

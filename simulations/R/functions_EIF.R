@@ -144,7 +144,7 @@ non_oracle_model <- function(data){
 
 get_n_oracle_covar <- function(data){
   dat <- data %>% mutate(ZA = Z*A, X2 = X^2)
-  res <- data[,names(data) %in% c("A", "fake_2", "ZA", "X2")]
+  res <- dat[,names(dat) %in% c("A", "fake_2", "ZA", "X2")]
   return(res)
 }
 
@@ -168,7 +168,7 @@ return(mod)
 #EIF components--------------
 #Propensity
 propensity <- function(data){
-  mod <- glm(A ~ X + Z + fake_1 + fake_2 + fake_3, family = "binomial", data = data)
+  mod <- glm(A ~ X + Z + fake_1 + fake_2 + fake_3, family = binomial(link = "logit"), data = data)
   
   new_data <- get_nA_covariates_val(data) %>% data.frame()
   
@@ -182,8 +182,7 @@ propensity <- function(data){
   #propensities
   pi_a_1 <- 1/p_a_1 * (get_A_val(data) == 1)
   pi_a_0 <- 1/p_a_0 * (get_A_val(data) == 0)
-  propens <- cbind(pi_a_0, pi_a_1)
-  colnames(propens) <- c("pi_a_0", "pi_a_1")
+  propens <- list("pi_a_0" = pi_a_0, "pi_a_1" = pi_a_1)
   
   #Coefficients
   coeff <- plogis(mod$coefficients)
@@ -213,7 +212,7 @@ estimate_martingales <- function(model, full_data, model_cov, corr_model = T){
   T_obs <- get_observed_times(full_data)
   
   #Generating at risk matrix. Notice the equality!
-  at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
+  at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">")
   
   #Change in cumulative hazard per individual (rows) per stopping time (columns).
   mod_dL <- cbind(0, mod_est_cum_haz[,-1] - mod_est_cum_haz[,-ncol(mod_est_cum_haz)])
@@ -264,6 +263,7 @@ get_S_hats <- function(mod, model_cov){
   
   return(list('S_hat' = S_hat, 'S_hat_0' = S_hat_0, 'S_hat_1' = S_hat_1, 'beta_hat' = beta_hat))
 }
+
 
 P_treatment_extend_survival <- function(model, max_time, model_cov){
   n <- get_row_length(data)
@@ -337,7 +337,7 @@ get_K_hat <- function(data, model, corr_model = T){
   cum_cens <- get_cum(mod_cens)
   no_jumps_cens <- get_row_length(cum_cens)                   #Number of jumps T > t
   tau_cens <- get_jump_times(cum_cens)                        #Jump times tau_cens1, tau_cens2,...,tau_cens_no_jumps
-  cum_basehaz_cens <- get_cum_base_haz(cum_cens)  #Cumulative baseline hazard   Lambda0(tau0), Lambda0(tau1),...,Lambda0(tau_no_jumps)
+  cum_basehaz_cens <- get_cum_base_haz(cum_cens)              #Cumulative baseline hazard   Lambda0(tau0), Lambda0(tau1),...,Lambda0(tau_no_jumps)
   
   #Betahat
   betahat_cens <- get_param_est(mod_cens)
@@ -345,7 +345,7 @@ get_K_hat <- function(data, model, corr_model = T){
   #Estimated cumulative hazard assuming the cox-model
   cumhaz_cens_hat <- predict_cox.aalen(covar = covar, betaHat = betahat_cens, cum_base_haz = cum_basehaz_cens)
   
-  #Estimating survival function S(t | A = 1, X) and S(t | A = 0, X)
+  #Estimating censoring function K_C(t | A, X)
   Khat_temp <- exp(-cumhaz_cens_hat)
   
   #The problem now is that the censoring times and failure times do not jump at the same time and we wish to look at the jump times
@@ -407,14 +407,14 @@ EIF <- function(data, T_corr = T, Cens_corr = T, max_time = 5){
   
   #Propensity scores
   prop <- propensity(data)$propens
-  prop_0 <- prop[,'pi_a_0']
-  prop_1 <- prop[,'pi_a_1']
+  prop_0 <- prop$pi_a_0
+  prop_1 <- prop$pi_a_1
   prop_sum <- prop_0 + prop_1
   
   
   
   #Part 1
-  p1 <- prop_0 * rowSums(S_hat1/K_C_hat*dM)
+  p1 <- prop_0 * rowSums((S_hat1/K_C_hat)*dM)
   
   
   #Part 2
@@ -425,10 +425,9 @@ EIF <- function(data, T_corr = T, Cens_corr = T, max_time = 5){
   inner_integrand <- dM/(S_hat * K_C_hat)
   inner_integral <- t(apply(inner_integrand, MARGIN = 1, FUN = cumsum))
   
+  p3 <- - prop_sum * p_treat_list$multiplier * rowSums(p_treat_list$integrand * inner_integral)
   
-  p3 <- prop_sum * p_treat_list$multiplier * rowSums(p_treat_list$integrand[,1:jump_times_to_keep] * inner_integral)
-  
-  output <- list(p1, p2, p3, est = mean(p1+p2-p3))
+  output <- list(p1, p2, p3, est = mean(p1+p2+p3))
   return(output)
 }
 

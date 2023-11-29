@@ -1,16 +1,71 @@
 
 
 
-n <- 1000
+n <- 500
 data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
                                      ba_c = 1, bx_c = log(2), bz_c = 1)
-EIF(data, max_time = 1)
+EIF_test <- EIF(data, T_corr = F, max_time = 2)
+EIF_test[4]
+
+n_sims <- 10
+simulation <- matrix(data = NA, ncol = 4, nrow = n_sims)
+max_time <- 5
+
+for (i in 1:n_sims){
+  n <- 10000
+  data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
+                                 ba_c = 1, bx_c = log(2), bz_c = 1)
+  
+  EIF_sim <- EIF(data, T_corr = F, max_time = max_time)
+  simulation[i,1] <- mean(EIF_sim[[1]])
+  simulation[i,2] <- mean(EIF_sim[[2]])
+  simulation[i,3] <- mean(EIF_sim[[3]])
+  simulation[i,4] <- EIF_sim[[4]]
+  print(paste0('Simulation ',i,' done'))
+}
+mean(simulation[,4])
 
 
+sum(between(simulation[,4], 0.7310462715-1.96*sd(simulation[,4]),0.7310462715+1.96*sd(simulation[,4])))/100
+
+weak_eq
+strong_eq
+
+######################################################
+#       10000 individuals, 100 simulations
+#       ba_t = -1
+#       ba_c = 1
+#       bx_t = log(2)
+#       bz_t = log(2)
+#       bx_c = log(2)
+#       bz_c = 1
+#       max_time = 10
+#       z unif(0,1) and x unif(-1,1)
+#       Both censoring and survival correctly specified
+sim_10000 <- simulation
+######################################################
+
+
+#Truth 0.7310585710
+0.7076703 #n_individuals = 500
+0.7121777 #n_individuals = 1000
+0.722216  #n_individuals = 1500
+0.7268907 #n_individuals = 2000
+0.7240742 #n_individuals = 2500
+0.7269909 #n_individuals = 3000
+0.7265684 #n_individuals = 3500
+0.7267914 #n_individuals = 4000
+
+simulate_prop <- matrix(data = NA, nrow = 500, ncol = 1)
+
+for (i in 1:500){
+n <- 1000
+data <- generate_survival_data(n, ba_t = 0, bx_t = log(2), bz_t = log(2),
+                               ba_c = 1, bx_c = log(2), bz_c = 1)
 
 model <- oracle_model(data)
 model_cov <- get_oracle_covar(data)
-
+max_time <- 1000
 
 n <- get_row_length(data)
 cum_haz_matrix <- get_cum(model)
@@ -44,9 +99,10 @@ integrand <- t(t(Shat_1 * Shat_0) * delta_cumbasehaz)
 multiplier <- exp(data.matrix(covar_A0) %*% beta_hat)
 
 res <- multiplier * rowSums(integrand)
-
-
-
+simulate_prop[i] <- mean(res)
+print(paste0('Simulation ',i,' done'))
+}
+mean(simulate_prop)
 
 
 
