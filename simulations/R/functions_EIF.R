@@ -69,13 +69,17 @@ get_mg_dL <- function(martingale_list){
   return(martingale_list$mod_dL)
 }
 
+sum_to_max_t <- function(matrix, jump_to_keep){
+  return(matrix[,1:jump_to_keep])
+}
+
 #Generate survival data------
 generate_survival_data <- function(n, 
                                    ba_t = -log(2), bx_t = log(2), bz_t = -log(2),
                                    ba_c = log(2), bx_c = log(2), bz_c = -log(2),
                                    x_range = c(-1,1), x_cont = T, x_vals = c(0,1), 
-                                   prop_a = 1/2){
-  
+                                   prop_a = 1/2, seed = 1){
+  set.seed(seed)
   #Treatment indicators
   a <- rbinom(n, 1, prop_a) 
   
@@ -136,6 +140,9 @@ get_oracle_covar <- function(data){
   return(res)
 }
 
+get_oracle_covar(data)
+o_mod <- oracle_model(data)
+get_param_est(o_mod)
 
 non_oracle_model <- function(data){
   mod <- cox.aalen(formula = Surv(T_obs, Uncensored) ~  prop(A) + prop(fake_2) + prop(Z*A) + prop(X^2), data = data)
@@ -150,7 +157,7 @@ get_n_oracle_covar <- function(data){
 
 oracle_cens_model <- function(data){
   mod <- cox.aalen(Surv(get_observed_times(data), get_censor_status(data) == F) ~ 
-              prop(X) + prop(Z), data = data)
+                     prop(X) + prop(Z), data = data)
 }
 
 get_oracle_cens_covar <- function(data){
@@ -160,7 +167,7 @@ get_oracle_cens_covar <- function(data){
 
 non_oracle_cens_model <- function(data){
   mod <- cox.aalen(Surv(get_observed_times(data), get_censor_status(data) == F)  ~ prop(A) + prop(fake_2) + prop(Z*A) + prop(X^2), data = data)
-return(mod)
+  return(mod)
 }
 
 
@@ -195,19 +202,15 @@ propensity <- function(data){
 
 
 #Martingale
-estimate_martingales <- function(model, full_data, model_cov, corr_model = T){
-  working_model <- model
+estimate_martingales <- function(working_model, full_data, model_cov, corr_model = T){
   mod_cum <- get_cum(working_model)
   mod_jump_times <- get_jump_times(cum_haz_matrix = mod_cum)
   mod_cum_baseline <- get_cum_base_haz(mod_cum)
-  n_jump_times <- length(mod_jump_times)
+  n_jump_times <- get_row_length(mod_jump_times)
   beta_hat <- get_param_est(working_model)
   
-  
-  
-  
   mod_est_cum_haz <- predict_cox.aalen(covar = model_cov, betaHat = beta_hat, cum_base_haz = mod_cum_baseline)
-
+  
   #List of observed times
   T_obs <- get_observed_times(full_data)
   
@@ -243,7 +246,7 @@ get_S_hats <- function(mod, model_cov){
   jump_times <- get_jump_times(cum_haz_matrix)
   cum_haz <- get_cum_base_haz(cum_haz_matrix)
   beta_hat <- get_param_est(mod)
- 
+  
   covar_true <- model_cov
   
   #creating counterfactual datasets
@@ -266,7 +269,7 @@ get_S_hats <- function(mod, model_cov){
 
 
 P_treatment_extend_survival <- function(model, max_time, model_cov){
-  n <- get_row_length(data)
+  
   cum_haz_matrix <- get_cum(model)
   n_jumps <- get_row_length(cum_haz_matrix)
   jump_times <- get_jump_times(cum_haz_matrix)
@@ -274,7 +277,7 @@ P_treatment_extend_survival <- function(model, max_time, model_cov){
   
   cum_haz <- get_cum_base_haz(cum_haz_matrix)
   beta_hat <- get_param_est(model)
- 
+  
   covar_true <- model_cov
   
   #creating counterfactual datasets
@@ -282,19 +285,29 @@ P_treatment_extend_survival <- function(model, max_time, model_cov){
   covar_A0 <- model_cov %>% mutate(A = 0)
   
   
-  cumhaz_hat <- predict_cox.aalen(covar = covar_true, betaHat = beta_hat, cum_base_haz = cum_haz)[,1:jump_times_to_keep]
-  cumhaz1_hat <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_haz)[,1:jump_times_to_keep]
-  cumhaz0_hat <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_haz)[,1:jump_times_to_keep]
-      
+  cumhaz_hat <- predict_cox.aalen(covar = covar_true, 
+                                  betaHat = beta_hat, 
+                                  cum_base_haz = cum_haz) 
+  
+  cumhaz1_hat <- predict_cox.aalen(covar = covar_A1, 
+                                   betaHat = beta_hat, 
+                                   cum_base_haz = cum_haz) 
+  
+  cumhaz0_hat <- predict_cox.aalen(covar = covar_A0, 
+                                   betaHat = beta_hat, 
+                                   cum_base_haz = cum_haz)
+  
   
   #Estimating survival function
-  Shat_1 <- exp(-cumhaz1_hat)
-  Shat_0 <- exp(-cumhaz0_hat)
+  S_hat_1 <- exp(-cumhaz1_hat)
+  S_hat_0 <- exp(-cumhaz0_hat)
   
   
-  delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])[1:jump_times_to_keep]
+  delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps]) %>% 
+    sum_to_max_t(jump_to_keep = jump_times_to_keep)
   
-  integrand <- t(t(Shat_1 * Shat_0) * delta_cumbasehaz)
+  integrand <- t(t(S_hat_1 * S_hat_0) * delta_cumbasehaz) %>% 
+    sum_to_max_t(jump_to_keep = jump_times_to_keep)
   multiplier <- exp(data.matrix(covar_A0) %*% beta_hat)
   
   res <- multiplier * rowSums(integrand)
@@ -303,6 +316,7 @@ P_treatment_extend_survival <- function(model, max_time, model_cov){
   
   return(res_list)
 }
+
 
 
 #Censoring distribution estimation
@@ -438,5 +452,5 @@ check_EIF <- function(n, T_corr = T, Cens_corr = T, max_time = 5, ba_t = -1){
   return(EIF(dat, T_corr = T_corr, Cens_corr = Cens_corr, max_time = max_time))
 }
 
-#check_EIF(1000, ba_t = 1)
+
 
