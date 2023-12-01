@@ -2,28 +2,91 @@
 
 
 n <- 500
-data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
+data <- generate_survival_data(n, ba_t = 0, bx_t = log(2), bz_t = log(2),
                                      ba_c = 1, bx_c = log(2), bz_c = 1)
 EIF_test <- EIF(data, T_corr = F, max_time = 2)
 EIF_test[4]
 
-n_sims <- 10
+n_sims <- 250
 simulation <- matrix(data = NA, ncol = 4, nrow = n_sims)
-max_time <- 5
+max_time <- 2
 
 for (i in 1:n_sims){
-  n <- 10000
-  data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
-                                 ba_c = 1, bx_c = log(2), bz_c = 1)
+  n <- 300
+  data <- generate_survival_data(n, ba_t = 0, bx_t = log(2), bz_t = log(2),
+                                 ba_c = 1, bx_c = log(2), bz_c = 1, seed = i)
   
-  EIF_sim <- EIF(data, T_corr = F, max_time = max_time)
+  EIF_sim <- EIF(data, Cens_corr = T, T_corr = F, max_time = max_time)
   simulation[i,1] <- mean(EIF_sim[[1]])
   simulation[i,2] <- mean(EIF_sim[[2]])
   simulation[i,3] <- mean(EIF_sim[[3]])
   simulation[i,4] <- EIF_sim[[4]]
   print(paste0('Simulation ',i,' done'))
 }
-mean(simulation[,4])
+mean(simulation[,1])
+
+prop <- propensity(data)
+colMeans(prop$probs)
+
+
+proportion_observed(data)
+
+visualize_data(data)
+
+sim_F_T
+
+n <- 500
+data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
+                               ba_c = 1, bx_c = log(2), bz_c = 1)
+model <- oracle_model(data)
+
+list <- P_treatment_extend_survival(model = model, max_time = 5, model_cov = get_oracle_covar(data), full_data = data)
+
+delta_jump <- list$jump_times[-1] - list$jump_times[-length(list$jump_times)]
+
+
+
+
+
+
+
+list$delta_cumbasehaz[160] 
+delta_jump[160]
+
+
+
+
+
+n <- 500
+data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
+                               ba_c = 1, bx_c = log(2), bz_c = -2, seed = sample(1:1000))
+
+test_non_oracle_model <- non_oracle_model(data)
+test_non_oracle_model
+
+head(get_n_oracle_covar(data))
+
+
+predict_cox.aalen <- function(covar,betaHat, cum_base_haz){ #W is the rest of the covariates, A is treatment
+  covar <- data.matrix(covar)
+  val <- exp(covar %*% betaHat) %*% cum_base_haz
+  return(val)
+}
+
+model <- oracle_model(data)
+cum_matrix <- get_cum(model)
+cum_base_haz <- get_cum_base_haz(cum_matrix)
+beta_hat <- get_param_est(model)
+
+(exp(cbind(data$A, data$X, data$Z) %*% beta_hat) %*% cum_base_haz)[100,173]
+sum(cbind(data$A, data$X, data$Z)[100,] * beta_hat) * cum_base_haz[173]
+
+(data.matrix(get_oracle_covar(data)) %*% beta_hat)
+
+predict_cox.aalen(get_oracle_covar(data),betaHat = beta_hat, cum_base_haz = cum_base_haz)[100, 173]
+
+
+
 
 
 sum(between(simulation[,4], 0.7310462715-1.96*sd(simulation[,4]),0.7310462715+1.96*sd(simulation[,4])))/100
@@ -127,9 +190,41 @@ mean(EIF_test[[4]])
 
 
 
+n <- 500
+data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
+                               bx_c = -log(2), bz_c = 1)
+
+model <- oracle_model(data)
+model_cov <- get_oracle_covar(data)
+
+working_model <- model
+mod_cum <- get_cum(working_model)
+mod_jump_times <- get_jump_times(cum_haz_matrix = mod_cum)
+mod_cum_baseline <- get_cum_base_haz(mod_cum)
+n_jump_times <- length(mod_jump_times)
+beta_hat <- get_param_est(working_model)
 
 
 
+
+mod_est_cum_haz <- predict_cox.aalen(covar = model_cov, betaHat = beta_hat, cum_base_haz = mod_cum_baseline)
+
+#List of observed times
+T_obs <- get_observed_times(data)
+
+#Generating at risk matrix. Notice the equality!
+at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
+
+#Change in cumulative hazard per individual (rows) per stopping time (columns).
+mod_dL <- cbind(0, mod_est_cum_haz[,-1] - mod_est_cum_haz[,-ncol(mod_est_cum_haz)])
+
+#Estimating the change in counting process for each individual i dN_i(t) = I(T_i = t, Delta = 1):
+indicator_jump_time <- outer(T_obs, mod_jump_times, FUN = "==")
+indicator_uncensored <- get_censor_status(data)
+
+mod_dN <- indicator_jump_time*indicator_uncensored
+
+mod_dM <- mod_dN - at_risk*mod_dL
 
 
 
@@ -187,7 +282,39 @@ for(i in 1:no_jumps){
 View(Khat)
 
 
-get_K_hat <- function(data, surv_is_cox = T){
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Testing get_K_hat function----------------------
+
+n <- 500
+data <- generate_survival_data(n, ba_t = -1, bx_t = log(2), bz_t = log(2),
+                               bx_c = -log(2), bz_c = 1)
+
+model <- oracle_model(data)
+
+#Censoring distribution estimation
+get_K_hat <- function(data, model, corr_model = T){
   
   n <- get_row_length(data)
   
@@ -195,9 +322,8 @@ get_K_hat <- function(data, surv_is_cox = T){
   #                         Getting surv jump times
   ######################################################################
   
-  surv_model <- cox.aalen(Surv(T_obs, Uncensored) ~ prop(A) + prop(X), data = data)
-  cum <- get_cum_hazard(surv_model)
-  no_jumps <- get_row_length(cum)-1                   # Number of jumps T > t
+  cum <- get_cum(model)
+  no_jumps_obs <- get_row_length(cum)                    # Number of jumps T > t
   tau <- get_jump_times(cum)                          # Jump times tau1, tau2,...,tau_no_jumps
   
   ######################################################################
@@ -207,46 +333,42 @@ get_K_hat <- function(data, surv_is_cox = T){
   #                         Getting censoring distribution
   ######################################################################
   #Fitting model for censoring distribution
-  if(surv_is_cox){
-    mod_cens <- cox.aalen(Surv(get_observed_times(data), get_censor_status(data) == F) ~ 
-                            prop(get_A_values(data)) + prop(get_X_values(data)), data = data)
+  if(corr_model){
+    mod_cens <- oracle_cens_model(data)
+    covar <- get_oracle_cens_covar(data)
   } else {
-    mod_cens <- cox.aalen(Surv(get_observed_times(data), get_censor_status(data) == F) 
-                          ~ prop(get_A_values(data)) + prop(get_X_values(data)^2), data = data)
+    mod_cens <- non_oracle_cens_model(data)
+    covar <- get_n_oracle_covar(data)
   }
   
   #Jump times and cumulative baseline hazard:
-  cum_cens <- get_cum_hazard(mod_cens)
-  no_jumps_cens <- get_row_length(cum_cens) - 1               #Number of jumps T > t
+  cum_cens <- get_cum(mod_cens)
+  no_jumps_cens <- get_row_length(cum_cens)                   #Number of jumps T > t
   tau_cens <- get_jump_times(cum_cens)                        #Jump times tau_cens1, tau_cens2,...,tau_cens_no_jumps
-  cumbasehaz_cens <- get_cum_baseline_hazard_times(cum_cens)  #Cumulative baseline hazard   Lambda0(tau0), Lambda0(tau1),...,Lambda0(tau_no_jumps)
+  cum_basehaz_cens <- get_cum_base_haz(cum_cens)              #Cumulative baseline hazard   Lambda0(tau0), Lambda0(tau1),...,Lambda0(tau_no_jumps)
   
   #Betahat
-  betahat_cens <- get_parameter_estimates(mod_cens)
+  betahat_cens <- get_param_est(mod_cens)
   
   #Estimated cumulative hazard assuming the cox-model
-  #cumhaz_cens_hat <- (exp(cbind(data$A, data$X) %*% betahat_cens) %*% cumbasehaz_cens)        # cumhaz_cens(t | A, X)
-  cumhaz_cens_hat <- predict_cox.aalen(A = get_A_values(data), 
-                                       W = get_X_values(data), 
-                                       betaHat = betahat_cens, 
-                                       cum_base_haz = cumbasehaz_cens, 
-                                       n_jumps = no_jumps_cens)
+  cumhaz_cens_hat <- predict_cox.aalen(covar = covar, betaHat = betahat_cens, cum_base_haz = cum_basehaz_cens)
   
-  #Estimating survival function S(t | A = 1, X) and S(t | A = 0, X)
+  #Estimating censoring function K_C(t | A, X)
   Khat_temp <- exp(-cumhaz_cens_hat)
   
   #The problem now is that the censoring times and failure times do not jump at the same time and we wish to look at the jump times
   #of the survival function. That is we wish to return Khat not in the jump times tau_cens but in tau. Since Khat is constant in between
   #jump times, we can simply take the value of Khat corresponding to the largest value of tau_cens that is lower than tau
+  
+  
   Khat = matrix(NA, nrow = n, ncol = no_jumps) #Maybe this can also be vectorized??
   for(i in 1:no_jumps){
     Khat[,i] = Khat_temp[,max((1:no_jumps_cens)[tau_cens<=tau[i]])]
   }
   
-  Khat[is.na(Khat)] <- 1
-  
   return(Khat)
 }
+
 
 
 
