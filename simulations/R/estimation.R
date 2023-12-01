@@ -28,18 +28,22 @@ mean(simulation[,1])
 
 
 
+test <- function(){
 
-
-n <- 500
+n <- 1000
 data <- generate_survival_data(n, ba_t = 0, bx_t = log(2), bz_t = log(2),
                                ba_c = 1, bx_c = log(2), bz_c = -2, seed = sample(1:1000))
+
 
 model_surv <- non_oracle_model(data)
 model_cens <- oracle_cens_model(data)
 
 
 props <- propensity(data)
+pi_a_0 <- 2*(1-get_A_val(data))#props$propens$pi_a_0
 
+pi_a_1 <- 2*get_A_val(data) #props$propens$pi_a_1
+pi_sum = pi_a_0 + pi_a_1
 
 
 cum_matrix_obs <- get_cum(model_surv)
@@ -47,6 +51,9 @@ jump_times_obs <- get_jump_times(cum_matrix_obs)
 cum_bas_haz_obs <- get_cum_base_haz(cum_matrix_obs)
 no_jumps_obs <- get_row_length(cum_matrix_obs)
 beta_hat_obs <- get_param_est(model_surv)
+max_time <- 3
+max_time_filter <- jump_times_obs<max_time
+
 
 
 covar_true <- get_n_oracle_covar(data)
@@ -83,14 +90,40 @@ for(i in 1:no_jumps_obs){
   Khat_cens[,i] = S_hat_cens[,max((1:no_jumps_cens)[jump_times_cens<=jump_times_obs[i]])]
 }
 
+#Finding martingales
+T_obs <- get_observed_times(data)
+at_risk <- outer(X = T_obs, Y = jump_times_obs, FUN = ">=")
+#Cumulative hazard Y*alpha
+dN <- outer(X = T_obs, Y = jump_times_obs, FUN = "==")
+dH <- cbind(0, cum_hat_obs[,-1]-cum_hat_obs[,-ncol(cum_hat_obs)])
+dL <- at_risk*dH
+dM <- dN - dL
 
 
+p1_integrand <- (S_hat1_obs/Khat_cens)*dM
+p1_integrand_pruned <- p1_integrand[,max_time_filter]
+p1 <- pi_a_0*rowSums(p1_integrand_pruned)
+p1_fake <- pi_a_0*rowSums(p1_integrand)
+
+#p2 
+p_extend_surv <- P_treatment_extend_survival(model = model_surv, max_time = max_time, model_cov = covar_true)
+p2 <- p_extend_surv$res
+
+#p3
+scalar <- p_extend_surv$multiplier
+
+sim_M <- (dM/(S_hat_obs*Khat_cens))[, max_time_filter]
+cum_sim_M <- t(apply(sim_M, MARGIN = 1, cumsum))
+
+p3_integral <- rowSums((p_extend_surv$integrand)*cum_sim_M)
+p3 <- -pi_sum*scalar*p3_integral
+
+return(c(mean(p1_fake), mean(p1), mean(p2), mean(p3), mean(p1+p2+p3)))
+}
 
 
-
-
-
-
+res <- replicate(100, test())
+rowMeans(res)
 
 
 
