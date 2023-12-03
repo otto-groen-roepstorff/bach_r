@@ -159,9 +159,9 @@ proportion_observed <- function(data){
 }
 
 
-breslow_estimator <- function(data, beta_hat){
-  working_model <- cox_naive_model(data)
-  mod_cum <- get_cum_hazard(working_model)
+breslow_estimator <- function(data, beta_hat, T_corr = T){
+  working_model <- oracle_model(data)
+  mod_cum <- get_cum(working_model)
   mod_jump_times <- get_jump_times(mod_cum)
   
   #Generating at risk matrix. Notice the equality!
@@ -169,13 +169,41 @@ breslow_estimator <- function(data, beta_hat){
   at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
   
   #Calculating denominator
-  A_cov <- get_A_values(data)
-  X_cov <- get_X_values(data)
+  if(T_corr){
+    covar <- data.matrix(get_oracle_covar(data))
+  } else {
+    covar <- data.matrix(get_n_oracle_covar(data))
+  }
   
-  denom <- colSums(at_risk * matrix(data = exp(cbind(A_cov, X_cov) %*% beta_hat), nrow = nrow(data), ncol = length(mod_jump_times)))
+  denom <- (colSums(at_risk * matrix(data = exp(covar %*% beta_hat), nrow = nrow(data), ncol = length(mod_jump_times))))[-1]
   
-  return(c(0,cumsum(1/denom)))
+  return(list(breslow = c(0,cumsum(1/denom)), jump_times_breslow = mod_jump_times))
 }
+
+breslow_estimator_cens <- function(data, beta_hat, cens_corr = T){
+  working_model <- oracle_cens_model(data)
+  mod_cum <- get_cum(working_model)
+  mod_jump_times <- get_jump_times(mod_cum)
+  
+  #Generating at risk matrix. Notice the equality!
+  T_obs <- get_observed_times(data)
+  at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
+  
+  #Calculating denominator
+  if(cens_corr){
+    covar <- data.matrix(get_oracle_cens_covar(data))
+  } else {
+    covar <- data.matrix(get_n_oracle_covar(data))
+  }
+  
+  denom <- (colSums(at_risk * matrix(data = exp(covar %*% beta_hat), nrow = nrow(data), ncol = length(mod_jump_times))))[-1]
+  
+  return(list(breslow = c(0,cumsum(1/denom)), jump_times_breslow = mod_jump_times))
+}
+
+
+
+
 
 #Cox models-------------------------
 

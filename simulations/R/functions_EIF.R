@@ -140,10 +140,6 @@ get_oracle_covar <- function(data){
   return(res)
 }
 
-get_oracle_covar(data)
-o_mod <- oracle_model(data)
-get_param_est(o_mod)
-
 non_oracle_model <- function(data){
   mod <- cox.aalen(formula = Surv(T_obs, Uncensored) ~  prop(A) + prop(fake_2) + prop(Z*A) + prop(X^2), data = data)
   return(mod)
@@ -206,7 +202,7 @@ estimate_martingales <- function(working_model, full_data, model_cov, corr_model
   mod_cum <- get_cum(working_model)
   mod_jump_times <- get_jump_times(cum_haz_matrix = mod_cum)
   mod_cum_baseline <- get_cum_base_haz(mod_cum)
-  n_jump_times <- get_row_length(mod_jump_times)
+  n_jump_times <- length(mod_jump_times)
   beta_hat <- get_param_est(working_model)
   
   mod_est_cum_haz <- predict_cox.aalen(covar = model_cov, betaHat = beta_hat, cum_base_haz = mod_cum_baseline)
@@ -215,7 +211,7 @@ estimate_martingales <- function(working_model, full_data, model_cov, corr_model
   T_obs <- get_observed_times(full_data)
   
   #Generating at risk matrix. Notice the equality!
-  at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">")
+  at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
   
   #Change in cumulative hazard per individual (rows) per stopping time (columns).
   mod_dL <- cbind(0, mod_est_cum_haz[,-1] - mod_est_cum_haz[,-ncol(mod_est_cum_haz)])
@@ -287,15 +283,15 @@ P_treatment_extend_survival <- function(model, max_time, model_cov){
   
   cumhaz_hat <- predict_cox.aalen(covar = covar_true, 
                                   betaHat = beta_hat, 
-                                  cum_base_haz = cum_haz) 
+                                  cum_base_haz = cum_haz)[,1:jump_times_to_keep]
   
   cumhaz1_hat <- predict_cox.aalen(covar = covar_A1, 
                                    betaHat = beta_hat, 
-                                   cum_base_haz = cum_haz) 
+                                   cum_base_haz = cum_haz)[,1:jump_times_to_keep]
   
   cumhaz0_hat <- predict_cox.aalen(covar = covar_A0, 
                                    betaHat = beta_hat, 
-                                   cum_base_haz = cum_haz)
+                                   cum_base_haz = cum_haz)[,1:jump_times_to_keep]
   
   
   #Estimating survival function
@@ -303,11 +299,9 @@ P_treatment_extend_survival <- function(model, max_time, model_cov){
   S_hat_0 <- exp(-cumhaz0_hat)
   
   
-  delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps]) %>% 
-    sum_to_max_t(jump_to_keep = jump_times_to_keep)
+  delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])[1:jump_times_to_keep]
   
-  integrand <- t(t(S_hat_1 * S_hat_0) * delta_cumbasehaz) %>% 
-    sum_to_max_t(jump_to_keep = jump_times_to_keep)
+  integrand <- t(t(S_hat_1 * S_hat_0)) * delta_cumbasehaz
   multiplier <- exp(data.matrix(covar_A0) %*% beta_hat)
   
   res <- multiplier * rowSums(integrand)
@@ -328,9 +322,9 @@ get_K_hat <- function(data, model, corr_model = T){
   #                         Getting surv jump times
   ######################################################################
   
-  cum <- get_cum(model)
-  no_jumps <- get_row_length(cum)                    # Number of jumps T > t
-  tau <- get_jump_times(cum)                          # Jump times tau1, tau2,...,tau_no_jumps
+  cum_obs <- get_cum(model)
+  no_jumps_obs <- get_row_length(cum_obs)                    # Number of jumps T > t
+  tau_obs <- get_jump_times(cum_obs)                         # Jump times tau1, tau2,...,tau_no_jumps
   
   ######################################################################
   
@@ -341,10 +335,10 @@ get_K_hat <- function(data, model, corr_model = T){
   #Fitting model for censoring distribution
   if(corr_model){
     mod_cens <- oracle_cens_model(data)
-    covar <- get_oracle_cens_covar(data)
+    covar_cens <- get_oracle_cens_covar(data)
   } else {
     mod_cens <- non_oracle_cens_model(data)
-    covar <- get_n_oracle_covar(data)
+    covar_cens <- get_n_oracle_covar(data)
   }
   
   #Jump times and cumulative baseline hazard:
@@ -357,7 +351,7 @@ get_K_hat <- function(data, model, corr_model = T){
   betahat_cens <- get_param_est(mod_cens)
   
   #Estimated cumulative hazard assuming the cox-model
-  cumhaz_cens_hat <- predict_cox.aalen(covar = covar, betaHat = betahat_cens, cum_base_haz = cum_basehaz_cens)
+  cumhaz_cens_hat <- predict_cox.aalen(covar = covar_cens, betaHat = betahat_cens, cum_base_haz = cum_basehaz_cens)
   
   #Estimating censoring function K_C(t | A, X)
   Khat_temp <- exp(-cumhaz_cens_hat)
@@ -367,9 +361,9 @@ get_K_hat <- function(data, model, corr_model = T){
   #jump times, we can simply take the value of Khat corresponding to the largest value of tau_cens that is lower than tau
   
   
-  Khat = matrix(NA, nrow = n, ncol = no_jumps) #Maybe this can also be vectorized??
-  for(i in 1:no_jumps){
-    Khat[,i] = Khat_temp[,max((1:no_jumps_cens)[tau_cens<=tau[i]])]
+  Khat = matrix(NA, nrow = n, ncol = no_jumps_obs) #Maybe this can also be vectorized??
+  for(i in 1:no_jumps_obs){
+    Khat[,i] = Khat_temp[,max((1:no_jumps_cens)[tau_cens<=tau_obs[i]])]
   }
   
   return(Khat)
