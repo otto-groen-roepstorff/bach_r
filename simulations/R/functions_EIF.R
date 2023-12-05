@@ -215,7 +215,7 @@ estimate_martingales <- function(working_model, full_data, model_cov, corr_model
   T_obs <- get_observed_times(full_data)
   
   #Generating at risk matrix. Notice the equality!
-  at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">")
+  at_risk <- outer(X = T_obs, Y = mod_jump_times, FUN = ">=")
   
   #Change in cumulative hazard per individual (rows) per stopping time (columns).
   mod_dL <- cbind(0, mod_est_cum_haz[,-1] - mod_est_cum_haz[,-ncol(mod_est_cum_haz)])
