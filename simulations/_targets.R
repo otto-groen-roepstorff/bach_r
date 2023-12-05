@@ -36,32 +36,41 @@ list(
     command = 1000
   ),
   
-  #tar_target(
-  #  name = surv_cox_cens_cox,
-  #  command = generate_survival_data(n = n_sim, x_vals = x_vals,surv_is_cox = T, cens_is_cox = T)
-  #  # format = "feather" # efficient storage for large data frames
-  #),
-  #tar_target(
-  #  name = surv_cox_cens_not_cox,
-  #  command = generate_survival_data(n = n_sim, x_vals = x_vals,surv_is_cox = T, cens_is_cox = F)
-  #  # format = "feather" # efficient storage for large data frames
-  #),
-  #tar_target(
-  #  name = surv_not_cox_cens_cox,
-  #  command = generate_survival_data(n = n_sim, x_vals = x_vals,surv_is_cox = F, cens_is_cox = T)
-  #  # format = "feather" # efficient storage for large data frames
-  #),
-  #tar_target(
-  #  name = surv_not_cox_cens_not_cox,
-  #  command = generate_survival_data(n = n_sim, x_vals = x_vals,surv_is_cox = F, cens_is_cox = F)
-  #  # format = "feather" # efficient storage for large data frames
-  #)
-  tar_target(name = test_of_data_generating, command = replicate(n = n_reps, 
-                                                                 check_mod(n = n_sim, 
-                                                                           surv_is_cox = F, 
-                                                                           treatment_effect = 0, 
-                                                                           x_vals = c(0,10))
-  )
-  )
+  tar_target(
+    name = data,
+    command = generate_survival_data(n = n_sim, x_vals = c(-1,1)),
+     format = "feather" # efficient storage for large data frames0
+  ),
+  
+  #model diagnostics
+  tar_target(
+    name = dat_observed,
+    command = proportion_observed(data)
+  ),
+  
+  tar_target(
+    name = data_plots,
+    command = visualize_data(data)
+  ),
+  
+  #building models
+  tar_target(
+    name = oracle_T_model,
+    command = oracle_model(data)
+    # format = "feather" # efficient storage for large data frames
+  ),
+  tar_target(
+    name = non_oracle_T_model,
+    command = non_oracle_model(data)
+  ),
+    
+  tar_target(
+    name = non_oracle_T_and_C_model,
+    command = non_oracle_model(data)
+  ),
+  
+  
+  
+    
 )
 
