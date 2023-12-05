@@ -398,7 +398,7 @@ EIF <- function(data, T_corr = T, Cens_corr = T, max_time = 5){
   
   
   #Censoring function estimate
-  K_C_hat <- get_K_hat(data = data, T_model = T_model, corr_cens_model = Cens_corr)[,1:jump_times_to_keep]
+  K_C_hat <- get_K_hat(data = data, T_model = T_model, corr_cens_model = Cens_corr)$Khat[,1:jump_times_to_keep]
   
   
   #Propensity scores
