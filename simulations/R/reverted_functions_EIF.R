@@ -408,7 +408,7 @@ EIF <- function(data, T_corr = T, Cens_corr = T, max_time = 5){
   prop_sum <- prop_0 + prop_1
   
   
-  
+  #Her mangler vi at fjerne rækker efter tau!!!
   #Part 1
   p1 <- prop_0 * rowSums((S_hat1/K_C_hat)*dM)
   
@@ -417,6 +417,7 @@ EIF <- function(data, T_corr = T, Cens_corr = T, max_time = 5){
   p_treat_list <- P_treatment_extend_survival(model = T_model,model_cov = T_model_cov, max_time = max_time)
   p2 <- p_treat_list$res
   
+  #Her mangler vi at fjerne rækker efter tau!!!
   #Part 3
   inner_integrand <- dM/(S_hat * K_C_hat)
   inner_integral <- t(apply(inner_integrand, MARGIN = 1, FUN = cumsum))
