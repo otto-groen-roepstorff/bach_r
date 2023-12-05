@@ -128,7 +128,7 @@ rowMeans(res)
 
 
 
-
+res
 
 
 
