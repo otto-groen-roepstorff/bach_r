@@ -176,6 +176,7 @@ propensity <- function(data){
   
   #probabilities
   p_a_1 <- plogis(predictions)
+    #plogis(predictions)
   p_a_0 <- 1 - p_a_1
   probs <- cbind(p_a_0, p_a_1)
   colnames(probs) <- c("p_a_0", "p_a_1")
@@ -269,7 +270,7 @@ P_treatment_extend_survival <- function(model, max_time, model_cov){
   cum_haz_matrix <- get_cum(model)
   n_jumps <- get_row_length(cum_haz_matrix)
   jump_times <- get_jump_times(cum_haz_matrix)
-  jump_times_to_keep <- sum(jump_times <= max_time)
+  jump_times_to_keep <- jump_times <= max_time
   
   cum_haz <- get_cum_base_haz(cum_haz_matrix)
   beta_hat <- get_param_est(model)
@@ -281,9 +282,9 @@ P_treatment_extend_survival <- function(model, max_time, model_cov){
   covar_A0 <- model_cov %>% mutate(A = 0)
   
   
-  cumhaz_hat <- predict_cox.aalen(covar = covar_true, betaHat = beta_hat, cum_base_haz = cum_haz)[,1:jump_times_to_keep]
-  cumhaz1_hat <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_haz)[,1:jump_times_to_keep]
-  cumhaz0_hat <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_haz)[,1:jump_times_to_keep]
+  cumhaz_hat <- predict_cox.aalen(covar = covar_true, betaHat = beta_hat, cum_base_haz = cum_haz) %>% prune_data(max_time_filter = jump_times_to_keep)
+  cumhaz1_hat <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_haz) %>% prune_data(max_time_filter = jump_times_to_keep)
+  cumhaz0_hat <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_haz) %>% prune_data(max_time_filter = jump_times_to_keep)
       
   
   #Estimating survival function
@@ -291,7 +292,7 @@ P_treatment_extend_survival <- function(model, max_time, model_cov){
   Shat_0 <- exp(-cumhaz0_hat)
   
   
-  delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])[1:jump_times_to_keep]
+  delta_cumbasehaz <- c(0, cum_haz[-1] - cum_haz[-n_jumps])[jump_times_to_keep]
   
   integrand <- t(t(Shat_1 * Shat_0) * delta_cumbasehaz)
   multiplier <- exp(data.matrix(covar_A0) %*% beta_hat)
@@ -360,13 +361,11 @@ get_K_hat <- function(data, T_model, corr_cens_model = T){
   return(list(Khat = Khat, mod_cens = mod_cens))
 }
 
+prune_data <- function(data_matrix, max_time_filter){
+  data_matrix[,max_time_filter]  
+}
 
 
-
-data <- generate_survival_data(100)
-T_corr = T
-Cens_corr = T
-max_time = 5
 EIF <- function(data, T_corr = T, Cens_corr = T, max_time = 5){
   #Building models of T and Cens
   if(T_corr){
