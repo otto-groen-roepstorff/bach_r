@@ -88,18 +88,18 @@ test <- function(){
   return(c(mean(p1_alt), mean(p2_alt), mean(p3), mean(p1_alt+p2_alt + p3)))
 }
 
-test2 <- function(){
+test2 <- function(n = 300, ba_t = -1, max_time = 3){
   
-  n <- 1000
-  data <- generate_survival_data(n, ba_t = log(2), bx_t = log(2), bz_t = log(2),
-                                 ba_c = 1, bx_c = log(2), bz_c = -2, seed = sample(1:1000))
+  data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+                                 ba_c = 1, bx_c = log(2), bz_c = -2, seed = sample(1:100000))
   #Changing all data to observed data
   data$Uncensored <- T
   data$T_obs <- data$T_true
   T_obs <- data$T_obs
   
   #creating model
-  model_surv <- oracle_model(data)
+  model_surv <- non_oracle_nice_model(data)
+  covar_true <- get_n_oracle_nice_covar(data)
   
   #Calculating propensities
   props <- propensity(data)
@@ -113,9 +113,7 @@ test2 <- function(){
   cum_bas_haz_obs <- get_cum_base_haz(cum_matrix_obs)
   no_jumps_obs <- get_row_length(cum_matrix_obs)
   beta_hat_obs <- get_param_est(model_surv)
-  max_time <- 2
   max_time_filter <- jump_times_obs<= max_time
-  covar_true <- get_oracle_covar(data)
   #Counterfactual data
   covar_A0 <- data.matrix(covar_true %>% mutate(A = 0))
   covar_A1 <- covar_true %>% mutate(A = 1)
@@ -160,17 +158,35 @@ test2 <- function(){
     
   p_estimate <- p1+ p2- p3
     
-  output <- list(p1 = p1, p2 = p2, p3 = p3, result = p_estimate)
+  output <- c(de_biased_estimate = mean(p_estimate), de_bias = mean(p_estimate-phi_W), naive_estimate = mean(phi_W))#p1 = p1, p2 = p2, p3 = p3, )
   
   return(output)
 }
 
+start_time <- Sys.time()
+res <- replicate(250, test2(n =2400))
+end_time <- Sys.time()
+round(end_time - start_time, 2)
+rowMeans(res)
 
-res <- test2()
-mean(res$p1)
-mean(res$p2)
-mean(res$p3)
-mean(res$result)
+#250 sim
+#n = 300,   33  s
+#n = 600,    1  min
+#n = 1200,   4.7min
+#n = 2400,  11  min 
 
-test()
-res
+#True value 0.721570837
+
+#Oracle model - 250 sim
+#de_biased_est  0.72792141 - 300, 0.727393269 - 600, 0.722685203 - 1200, 0.721944585 - 2400                
+#naive_es       0.71754802 - 300, 0.720787283 - 600, 0.719998011 - 1200, 0.720906869 - 2400
+
+#Non-oracle nice - 250 sim
+#de_biased_est  0.71433986 - 300, 0.71708553 - 600,  0.711820790 - 1200,  - 2400                         
+#naive_es       0.69848042 - 300, 0.70675960 - 600,  0.703265426 - 1200,  - 2400
+
+
+
+#non
+
+
