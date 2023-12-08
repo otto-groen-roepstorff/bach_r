@@ -187,7 +187,7 @@ propensity <- function(data){
   #predictions <- predict(object = mod, newdata = new_data) 
   
   #probabilities
-  p_a_1 <- 1/2  #plogis(predictions)
+  p_a_1 <- 1/3  #plogis(predictions)
     #plogis(predictions)
   p_a_0 <- 1 - p_a_1
   probs <- cbind(p_a_0, p_a_1)
