@@ -179,16 +179,29 @@ get_n_oracle_nice_covar <- function(data){
 
 #EIF components--------------
 #Propensity
-propensity <- function(data){
-  #mod <- glm(A ~ X + Z + fake_1 + fake_2 + fake_3, family = binomial(link = "logit"), data = data)
-  #
-  #new_data <- get_nA_covariates_val(data) %>% data.frame()
-  #
-  #predictions <- predict(object = mod, newdata = new_data) 
+propensity <- function(data, glm = T){
   
+  if(glm){
+  mod <- glm(A ~ X + Z + fake_1 + fake_2 + fake_3, family = binomial(link = "logit"), data = data)
+  
+  new_data <- get_nA_covariates_val(data) %>% data.frame()
+  
+  #Predictions
+  predictions <- predict(object = mod, newdata = new_data)
+  
+  #probabilities  
+  p_a_1 <- plogis(predictions)
+  
+  #Coefficients
+  coeff <- plogis(mod$coefficients)
+  } else {
+    
   #probabilities
-  p_a_1 <- runif(n = nrow(data), min = 1/4, max = 3/4)  #plogis(predictions)
-    #plogis(predictions)
+  p_a_1 <- runif(n = nrow(data), min = 1/4, max = 3/4)
+  
+  }
+  
+  #plogis(predictions)
   p_a_0 <- 1 - p_a_1
   probs <- cbind(p_a_0, p_a_1)
   colnames(probs) <- c("p_a_0", "p_a_1")
@@ -198,7 +211,7 @@ propensity <- function(data){
   propens <- list("pi_a_0" = pi_a_0, "pi_a_1" = pi_a_1)
   
   #Coefficients
-  coeff <- 0 #plogis(mod$coefficients)
+  coeff <- 0
   
   output <- list('probs' = probs, 'propens' = propens, 'coeff' = coeff)
   return(output)
