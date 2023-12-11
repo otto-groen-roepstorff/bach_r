@@ -1,16 +1,17 @@
-
+library(glmnet)
 
 n_sims <- 250
 simulation <- matrix(data = NA, ncol = 5, nrow = n_sims)
 ba_t <- -1
 tau <- 3
-n <- 4800
+n <- 1000
 
+start.time <- Sys.time()
 for (j in 1:n_sims){
   data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
-                                 ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+                                 ba_c = 1, bx_c = log(2), bz_c = log(2), prop_a = 1/3, seed = sample(1:100000))
   
-  #data_for_breslow <- generate_survival_data(n, ba_t = ba_t, bx_t = log(6), bz_t = log(6),
+  #data_for_breslow <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
   #                                           ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:1000000))
   
   #data_for_cum_haz <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
@@ -25,6 +26,54 @@ for (j in 1:n_sims){
   
   props <- propensity(data)
   
+    # Function to compute HAL coefficients, survival probabilities, and cumulative baseline hazard for survival analysis
+  hal_survival <- function(X, y, censor_status, lambda1, lambda2, jump_times) {
+    # Standardize the features
+    X_std <- scale(X)
+    
+    # Fit a Cox proportional hazards model with HAL penalty
+    fit <- cv.glmnet(X_std, Surv(y, event = censor_status), alpha = 1, family = "cox",
+                     lambda = NULL, standardize = FALSE, thresh = 1e-10)
+    
+    # Extract the coefficients
+    beta <- as.vector(coef(fit, s = lambda1))
+    
+    # Apply HAL penalty
+    beta <- beta / (1 + lambda2 * abs(beta))
+    
+    # Compute survival probabilities at jump times
+    if (length(jump_times) > 0) {
+      surv_prob <- rep(NA, length(jump_times))
+      for (i in seq_along(jump_times)) {
+        t <- jump_times[i]
+        new_data <- as.matrix(cbind(1, scale(c(t, rep(0, ncol(X) - 1)), center = fit$offset, scale = fit$scale)))
+        linear_predictor <- sum(new_data * beta)
+        surv_prob[i] <- exp(-exp(linear_predictor))
+      }
+    } else {
+      surv_prob <- NULL
+    }
+    
+    # Compute cumulative baseline hazard
+    baseline_hazard <- basehaz(fit)
+    
+    return(list(coefficients = beta, survival_probabilities = surv_prob, baseline_hazard = baseline_hazard$hazard))
+  }
+  
+  
+  hal_survival(data, data$T_true, 
+               censor_status = data$Uncensored, 
+               lambda1 = 1, 
+               lambda2 = 1, 
+               jump_times = get_jump_times(get_cum(model_surv)))
+  
+  # Example usage:
+  # Assuming X is your feature matrix, y is the survival time, and jump_times is a vector of time points
+  # result <- hal_survival(X, y, lambda1 = 0.01, lambda2 = 0.01, jump_times = c(50, 100, 150))
+  # print("Optimized Coefficients:", result$coefficients)
+  # print("Survival Probabilities at Jump Times:", result$survival_probabilities)
+  # print("Cumulative Baseline Hazard:", result$baseline_hazard)
+  
   
   
   cum_matrix_obs <- get_cum(model_surv)
@@ -34,7 +83,7 @@ for (j in 1:n_sims){
   beta_hat_obs <- get_param_est(model_surv)
   
   
-  #breslow <- breslow_estimator(data_for_breslow, beta_hat_obs, T_corr = F)
+  #breslow <- breslow_estimator(data_for_breslow, beta_hat_obs, T_corr = T)
   #cum_bas_haz_obs_breslow <- breslow$breslow
   #breslow_jump_times <- breslow$jump_times_breslow
   #no_jump_times_breslow <- length(breslow_jump_times)
@@ -110,10 +159,10 @@ for (j in 1:n_sims){
   
   dM <- dN - at_risk * dL
   
-  #par(mfrow = c(1,1))
-  #plot(jump_times_obs, cumsum(colSums(dM)), type = 'l', ylab = 'Kummuleret dM.')
-  #plot(jump_times_obs, cumsum(colSums(dN)), type = 'l', ylab = 'Kummuleret dN., dL.', col = 'red')
-  #lines(jump_times_obs, cumsum(colSums(at_risk*dL)), col = alpha('blue', 0.2))
+  par(mfrow = c(1,1))
+  plot(jump_times_obs, cumsum(colSums(dM)), type = 'l', ylab = 'Kummuleret dM.')
+  plot(jump_times_obs, cumsum(colSums(dN)), type = 'l', ylab = 'Kummuleret dN., dL.', col = 'red')
+  lines(jump_times_obs, cumsum(colSums(at_risk*dL)), col = alpha('blue', 0.2))
   
   #plot(jump_times_obs, cumsum(dM[233,]), type = 'l', ylim = c(-3,1.1))
   #lines(jump_times_obs, cumsum(dN[233,]))
@@ -161,7 +210,7 @@ for (j in 1:n_sims){
   
   p4 <- mean(p3)
   
-  EIF_var_est <- mean((p1 + p2 + p3 - p4)^2)
+  EIF_var_est <- var(p1 + p2 + p3 - p4)
   
   
   simulation[j,1] <- mean(p1)
@@ -171,20 +220,32 @@ for (j in 1:n_sims){
   simulation[j,5] <- EIF_var_est
   print(paste0('Simulation ',j,' done'))
 }
-mean(simulation[,4]) 
-mean(simulation[,3]) 
+end.time <- Sys.time()
+end.time - start.time
+mean(simulation[,4])
+mean(simulation[,3])
+mean(simulation[,5]) 
 
-#Nice misspecified
-#0.6912407 - 300, 0.6980863 - 600, 0.7030793 - 900, 0.7076685 - 1500
-#0.6891559 - 300, 0.6974173 - 600, 0.7030534 - 900, 0.7085803 - 1500
 
-#Correctly specified
+#True value: 0.7215708370
+
+#Nice misspecified survival
+#0.6912407 - 300, 0.6980863 - 600, 0.7030793 - 900, 0.7076685 - 1500, 0.7089811 - 2400
+#0.6891559 - 300, 0.6974173 - 600, 0.7030534 - 900, 0.7085803 - 1500, 0.7096222 - 2400
+
+#Correctly specified survival
 #0.6949226 - 300, 0.7058112 - 600, 0.7149363 - 1200, 0.7190154 - 2400, 0.7198531 - 4800
 #0.6942408 - 300, 0.7049965 - 600, 0.7155028 - 1200, 0.7188588 - 2400, 0.7196702 - 4800
 
-#Nasty misspecified
-# - 300, - 600, - 1200, - 2400 
-# - 300, - 600, - 1200, - 2400
+#Nasty misspecified survival
+# 0.7509969 - 300, 0.7569597 - 600, 0.7608548 - 900, 0.7675732 - 2400 
+# 0.7449133 - 300, 0.7504189 - 600, 0.7551813 - 900, 0.7619871 - 2400
+
+#Correctly specified survival and misspecified censoring
+# 0.6960505 - 300, 0.7077723 - 600, 0.7137625 - 900, 0.7182949 - 2400 
+# 0.6944582 - 300, 0.7083863 - 600, 0.7135256 - 900, 0.7187663 - 2400
+
+
 
 #simulations_df$sim12 <- c(n, 
 #                          tau, 

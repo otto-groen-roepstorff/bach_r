@@ -98,8 +98,8 @@ test2 <- function(n = 300, ba_t = -1, max_time = 3){
   T_obs <- data$T_obs
   
   #creating model
-  model_surv <- non_oracle_nice_model(data)
-  covar_true <- get_n_oracle_nice_covar(data)
+  model_surv <- non_oracle_model(data)
+  covar_true <- get_n_oracle_covar(data)
   
   #Calculating propensities
   props <- propensity(data)
@@ -164,7 +164,7 @@ test2 <- function(n = 300, ba_t = -1, max_time = 3){
 }
 
 start_time <- Sys.time()
-res <- replicate(250, test2(n =2400))
+res <- replicate(250, test2(n =300))
 end_time <- Sys.time()
 round(end_time - start_time, 2)
 rowMeans(res)
@@ -181,11 +181,15 @@ rowMeans(res)
 #de_biased_est  0.72792141 - 300, 0.727393269 - 600, 0.722685203 - 1200, 0.721944585 - 2400                
 #naive_es       0.71754802 - 300, 0.720787283 - 600, 0.719998011 - 1200, 0.720906869 - 2400
 
+
 #Non-oracle nice - 250 sim
-#de_biased_est  0.71433986 - 300, 0.71708553 - 600,  0.711820790 - 1200,  - 2400                         
-#naive_es       0.69848042 - 300, 0.70675960 - 600,  0.703265426 - 1200,  - 2400
+#de_biased_est  0.71433986 - 300, 0.71708553 - 600,  0.711820790 - 1200, 0.711202019 - 2400                         
+#naive_es       0.69848042 - 300, 0.70675960 - 600,  0.703265426 - 1200, 0.703563154 - 2400
 
 
+#Non_oracle_nasty
+#de_biased_est  0.77680687 - 300, 0.77349685 - 600,  0.76868194 - 1200,  0.76896924 - 2400                         
+#naive_es       0.75678228 - 300, 0.75759671 - 600,  0.75672818 - 1200,  0.75855918 - 2400
 
 #non
 
