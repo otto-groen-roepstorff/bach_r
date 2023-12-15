@@ -8,12 +8,17 @@ library(ggsurvfit)
 library(gtsummary)
 library(tidycmprsk)
 library(timereg)
+library(xtable)
+library(stargazer)
+library(texreg)
 
 
 ################################
 #   Reading and preparing data
 ################################
 df <- read_csv("~/Desktop/Studie/3/Bachelor/Data/Operation_hos_boern/data_til_sara.csv")
+
+attach(df)
 
 #Constructing global time, indicating time until event or censoring
 df$time=df$time_until_exam
@@ -28,12 +33,78 @@ df$axis_lenght_center <- scale(df$axis_lenght, center = TRUE, scale = FALSE)
 df$young <- df$age_at_surg < 6*30
 
 
+################################################################
+#             Cumulative baseline hazard
+################################################################
+
+fit_all <- coxph(Surv(time,status) ~ ster_regi + iol_single + age_at_surg + axis_lenght + num_re_op, data=df)
+fit_0 <- coxph(Surv(time, status) ~ 1, data = df)
+cumbasehaz_coxph <- basehaz(fit_all, center = FALSE)[,1]
+
+base_covs <- df %>% mutate(ster_regi = 0, iol_single = 0, age_at_surg = 0, axis_lenght = 0, num_re_op = 0)
+fit_0_surv <- survfit(fit_all, newdata = base_covs)
+
+times_coxph <- fit_0_surv$time
+cumbasehaz_coxph <- fit_0_surv$cumhaz[,1]
+std.err_coxph <- fit_0_surv$std.err[,1]
+
+ci_lower_cumbasehaz_coxph <- cumbasehaz_coxph - std.err_coxph
+ci_upper_cumbasehaz_coxph <- cumbasehaz_coxph + std.err_coxph
+
+
+
+sample_list <- list()
+for (i in 1:10000){
+  sample_indices <- sample(nrow(df), size = 5000, replace = TRUE)
+  sample_data <- df[sample_indices, ]
+  
+  fit_sample <- coxph(Surv(time,status) ~ ster_regi + iol_single + age_at_surg + axis_lenght + num_re_op, data=sample_data)
+  
+  cumbasehaz_coxph_fit <- basehaz(fit_sample, centered = FALSE)[,1]
+  times <- basehaz(fit_sample, centered = FALSE)[,2]
+  sample_list[[length(sample_list) + 1]] <- list(times, cumbasehaz_coxph_fit)
+}
+
+#plot(basehaz(fit_all)[,2], cumbasehaz_coxph, type = 'l')
+#for (i in 1:100){
+#  lines(sample_list[[i]][[1]], sample_list[[i]][[2]], lty = 2)
+#}
+
+means <- c()
+for (i in 1:10000){
+  means[i] <- mean(sample_list[[i]][[2]])
+}
+
+ci_lower_index <- which(means == max(means[which(means < quantile(means, 0.025))]))
+ci_upper_index <- which(means == min(means[which(means > quantile(means, 0.975))]))
+
+plot(basehaz(fit_all)[,2], cumbasehaz_coxph, type = 'l', ylim = c(0,1))
+
+plot(times_coxph, cumbasehaz_coxph, type = 'l', ylim = c(0,1), 
+     ylab = 'Cummulative baseline hazard', 
+     xlab = 'Days', 
+     main = 'Cummulative baseline hazard')
+lines(times_coxph, ci_lower_cumbasehaz_coxph, lty = 2)
+lines(times_coxph, ci_upper_cumbasehaz_coxph, lty = 2)
+lines(sample_list[[ci_lower_index]][[1]], sample_list[[ci_lower_index]][[2]], lty = 4)
+lines(sample_list[[ci_upper_index]][[1]], sample_list[[ci_upper_index]][[2]], lty = 5)
+
 
 ################################################################
 #             Fitting different models
 ################################################################
 
-fit_all <- coxph(Surv(time,status) ~ factor(ster_regi) + factor(iol_single) + age_at_surg + axis_lenght + num_re_op, data=df)
+
+
+
+
+
+plot((fit_cox_aalen$cum)[,1], (fit_cox_aalen$cum)[,2], col = 'blue')
+
+
+
+
+
 summary(fit_all)
 
 #In the above model only age_at_surg and num_re_op are significant
@@ -56,6 +127,7 @@ fit_ster_reg <- coxph(Surv(time,status) ~ factor(iol_single) + age_at_surg + num
 ################################################################
 
 #Fitting models for plotting
+full_surv <- survfit(Surv(time, status) ~ factor(ster_regi) + factor(iol_single) + age_at_surg + axis_lenght + num_re_op, data = df)
 ster_regi_surv <- survfit(Surv(time, status) ~ factor(ster_regi), data = df)
 iol_single_surv <- survfit(Surv(time, status) ~ factor(iol_single), data = df)
 young_surv <- survfit(Surv(time, status) ~ factor(young), data = df)
@@ -65,9 +137,14 @@ young_surv <- survfit(Surv(time, status) ~ factor(young), data = df)
 #     Kaplan Meier curves for specific covariates
 ################################################################
 
+
+
+plot(ster_regi_surv$time, ster_regi_surv$strata)
+
 #Kaplan Meier curve with ster_regi
-KM_ster_regi <- ggsurvplot(ster_regi_surv,
+ggsurvplot(ster_regi_surv,
                            pval = FALSE, conf.int = F,
+                           palette = c("darkblue", "darkred"),
                            risk.table.col = "strata", # Change risk table color by groups
                            ggtheme = theme_bw(), # Change ggplot2 theme
                            xlim = c(0,3000),
@@ -109,6 +186,24 @@ arrange_ggsurvplots(KM_plots, ncol = 3, nrow = 1)
 ################################################################
 #                       Cumulative hazard
 ################################################################
+
+#estimating cumulative baseline hazard for fit_all:
+cum_base_haz <- survfit(fit_all, newdata = data.frame(ster_regi = 0, iol_single = 0, age_at_surg = 0, axis_lenght = 0, num_re_op = 0))
+
+fit_all_ca <- cox.aalen(Surv(time,status) ~ prop(ster_regi) + 
+                       prop(iol_single) + prop(age_at_surg) + prop(axis_lenght) + prop(num_re_op), data=df)
+
+fit_all_ca$cum[,2] - cum_base_haz
+cum_base_haz
+
+ggplot(cum_base_haz, aes(x = time, y = hazard)) + 
+  geom_line() + 
+  theme_bw() +
+  xlab('Time in days') +
+  ylab('Cumulative baseline hazard')
+
+
+
 #ster_regi
 CH_ster_regi <- ggsurvplot(ster_regi_surv,
                                         risk.table.col = "strata", # Change risk table color by groups
