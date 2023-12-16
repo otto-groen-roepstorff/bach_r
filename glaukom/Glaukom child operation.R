@@ -11,6 +11,7 @@ library(timereg)
 library(xtable)
 library(stargazer)
 library(texreg)
+library(extrafont)
 
 
 ################################
@@ -48,14 +49,14 @@ times_coxph <- fit_0_surv$time
 cumbasehaz_coxph <- fit_0_surv$cumhaz[,1]
 std.err_coxph <- fit_0_surv$std.err[,1]
 
-ci_lower_cumbasehaz_coxph <- cumbasehaz_coxph - std.err_coxph
-ci_upper_cumbasehaz_coxph <- cumbasehaz_coxph + std.err_coxph
+ci_lower_cumbasehaz_coxph <- cumbasehaz_coxph - 1.96*std.err_coxph
+ci_upper_cumbasehaz_coxph <- cumbasehaz_coxph + 1.96*std.err_coxph
 
 
-
+#-------------Bootstrap confidence intervals------------
 sample_list <- list()
 for (i in 1:10000){
-  sample_indices <- sample(nrow(df), size = 5000, replace = TRUE)
+  sample_indices <- sample(nrow(df), size = nrow(df), replace = TRUE)
   sample_data <- df[sample_indices, ]
   
   fit_sample <- coxph(Surv(time,status) ~ ster_regi + iol_single + age_at_surg + axis_lenght + num_re_op, data=sample_data)
@@ -64,12 +65,6 @@ for (i in 1:10000){
   times <- basehaz(fit_sample, centered = FALSE)[,2]
   sample_list[[length(sample_list) + 1]] <- list(times, cumbasehaz_coxph_fit)
 }
-
-#plot(basehaz(fit_all)[,2], cumbasehaz_coxph, type = 'l')
-#for (i in 1:100){
-#  lines(sample_list[[i]][[1]], sample_list[[i]][[2]], lty = 2)
-#}
-
 means <- c()
 for (i in 1:10000){
   means[i] <- mean(sample_list[[i]][[2]])
@@ -80,30 +75,29 @@ ci_upper_index <- which(means == min(means[which(means > quantile(means, 0.975))
 
 plot(basehaz(fit_all)[,2], cumbasehaz_coxph, type = 'l', ylim = c(0,1))
 
-plot(times_coxph, cumbasehaz_coxph, type = 'l', ylim = c(0,1), 
+plot(times_coxph, cumbasehaz_coxph, type = 'l', ylim = c(-0.1,0.6), xlim = c(0, 3000),
      ylab = 'Cummulative baseline hazard', 
-     xlab = 'Days', 
-     main = 'Cummulative baseline hazard')
+     xlab = 'Days',
+     family = 'serif')
 lines(times_coxph, ci_lower_cumbasehaz_coxph, lty = 2)
 lines(times_coxph, ci_upper_cumbasehaz_coxph, lty = 2)
-lines(sample_list[[ci_lower_index]][[1]], sample_list[[ci_lower_index]][[2]], lty = 4)
+abline(0,0)
+
+lines(sample_list[[ci_lower_index]][[1]], sample_list[[ci_lower_index]][[2]], lty = 5)
 lines(sample_list[[ci_upper_index]][[1]], sample_list[[ci_upper_index]][[2]], lty = 5)
+
+
+plot(times_coxph, fit_0_surv$surv[,1], type = 'l', ylim = c(0.6,1), xlim = c(0, 3000),
+     ylab = 'Cummulative baseline hazard', 
+     xlab = 'Days',
+     family = 'serif')
+lines(times_coxph, fit_0_surv$upper[,100], lty = 2)
+lines(times_coxph, fit_0_surv$lower[,100], lty = 2)
 
 
 ################################################################
 #             Fitting different models
 ################################################################
-
-
-
-
-
-
-plot((fit_cox_aalen$cum)[,1], (fit_cox_aalen$cum)[,2], col = 'blue')
-
-
-
-
 
 summary(fit_all)
 
@@ -128,7 +122,7 @@ fit_ster_reg <- coxph(Surv(time,status) ~ factor(iol_single) + age_at_surg + num
 
 #Fitting models for plotting
 full_surv <- survfit(Surv(time, status) ~ factor(ster_regi) + factor(iol_single) + age_at_surg + axis_lenght + num_re_op, data = df)
-ster_regi_surv <- survfit(Surv(time, status) ~ factor(ster_regi), data = df)
+ster_regi_surv <- survfit(Surv(time, status) ~ ster_regi, data = df)
 iol_single_surv <- survfit(Surv(time, status) ~ factor(iol_single), data = df)
 young_surv <- survfit(Surv(time, status) ~ factor(young), data = df)
 
@@ -137,18 +131,36 @@ young_surv <- survfit(Surv(time, status) ~ factor(young), data = df)
 #     Kaplan Meier curves for specific covariates
 ################################################################
 
+#Kaplan Meier curve with ster_regi
+ster_regi_fit <- coxph(Surv(time, status) ~ factor(ster_regi), data = df)
+
+ster_regi_0_data <- df %>% filter(ster_regi == 0)
+ster_regi_1_data <- df %>% filter(ster_regi == 1)
 
 
-plot(ster_regi_surv$time, ster_regi_surv$strata)
+ster_regi_0_survfit <- survfit(ster_regi_fit, newdata = ster_regi_0_data)
+ster_regi_1_survfit <- survfit(ster_regi_fit, newdata = ster_regi_1_data)
+
+ster_regi_times <- ster_regi_0_survfit$time
+ster_regi_0_surv <- ster_regi_0_survfit$surv[,1]
+ster_regi_1_surv <- ster_regi_1_survfit$surv[,1]
+
+
+plot(ster_regi_times, ster_regi_0_surv, col = 'darkblue', type = 'l', xlim = c(0,3000))
+lines(ster_regi_times, ster_regi_1_surv, col = 'darkred')
+
 
 #Kaplan Meier curve with ster_regi
-ggsurvplot(ster_regi_surv,
+ggsurvplot(ster_regi_surv, linetype = 1, censor = F, size = 0.5,
                            pval = FALSE, conf.int = F,
                            palette = c("darkblue", "darkred"),
                            risk.table.col = "strata", # Change risk table color by groups
-                           ggtheme = theme_bw(), # Change ggplot2 theme
+                           ggtheme = theme_risktable_boxed(), # Change ggplot2 theme
+                           text=element_text(size=16,  family="serif"),
                            xlim = c(0,3000),
-                           ylim = c(0.8, 1))
+                           ylim = c(0.8, 1),
+                           text = 'serif',
+                           legend = c(0.8,0.8))
 
 #We see that the survival of the high dose group seems to higher in the first 1500 days but afterwards the opposite seems to be the case
 #Note that the curves cross indicating a violation of the constant proportional hazards

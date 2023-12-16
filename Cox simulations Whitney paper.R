@@ -17,6 +17,7 @@ n_alpha <- 100                       #Coarseness of alphas
 alph <- seq(1,2.5,length = n_alpha) #Defining the alphas we want to observe
 gam <- c(0.2, 1.1, 2)               #Choose the gamma values of interest for the exponential distributions
 n_gamma <- length(gam)
+set.seed(100)
 
 ###############################
 #RANDOMNESS
@@ -129,22 +130,27 @@ analysis_matrix_df$Gamma_Values <- paste0('(', analysis_matrix_df$Gamma0, ', ', 
 
 # Create a ggplot with customized settings
 ggplot(analysis_matrix_df, aes(x = Alpha, y = Beta, color = Gamma0, linetype = Gamma1)) +
-  geom_line(linewidth = 1) +
+  geom_line(linewidth = 0.6) +
   
   # Modify axis labels
   labs(
-    x = expression(alpha),
+    x = expression(theta),
     y = expression(hat(beta))
   ) +
   
+
   # Remove grid lines and customize the axis line
-  theme_minimal() +
+  theme_bw() +
   theme(
     panel.grid = element_blank(),
     panel.background = element_blank(),
     axis.line = element_line(color = "black"),
+    text=element_text(size=16,  family="serif"),
+    legend.position = c(0.2, 0.2),
+    legend.box = "horizontal"
   ) +
   
   # Customize color and linetype scales
-  scale_color_manual(values = c("blue", "red","darkgreen")) +
+  #scale_color_manual(values = c("blue", "red","darkgreen")) +
+  scale_color_grey() +
   scale_linetype_manual(values = c("dotted", "dashed", "solid"))
