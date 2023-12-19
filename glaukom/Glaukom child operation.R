@@ -19,8 +19,6 @@ library(extrafont)
 ################################
 df <- read_csv("~/Desktop/Studie/3/Bachelor/Data/Operation_hos_boern/data_til_sara.csv")
 
-attach(df)
-
 #Constructing global time, indicating time until event or censoring
 df$time=df$time_until_exam
 df$time=df$time+runif(length(df$time),-1,1)/10000 #Adding random noise not to have jumps at the same time
@@ -52,6 +50,7 @@ std.err_coxph <- fit_0_surv$std.err[,1]
 ci_lower_cumbasehaz_coxph <- cumbasehaz_coxph - 1.96*std.err_coxph
 ci_upper_cumbasehaz_coxph <- cumbasehaz_coxph + 1.96*std.err_coxph
 
+ci_upper_cumbasehaz_coxph_surv <- -log(fit_0_surv$lower)[,1]
 
 #-------------Bootstrap confidence intervals------------
 sample_list <- list()
@@ -120,6 +119,8 @@ fit_ster_reg <- coxph(Surv(time,status) ~ factor(iol_single) + age_at_surg + num
 #             Check proportional hazard assumption
 ################################################################
 
+cox_simple <- coxph(Surv(time, status) ~ factor(ster_regi) + factor(iol_single) + axis_lenght, data = df)
+
 #Fitting models for plotting
 full_surv <- survfit(Surv(time, status) ~ factor(ster_regi) + factor(iol_single) + age_at_surg + axis_lenght + num_re_op, data = df)
 ster_regi_surv <- survfit(Surv(time, status) ~ ster_regi, data = df)
@@ -151,12 +152,13 @@ lines(ster_regi_times, ster_regi_1_surv, col = 'darkred')
 
 
 #Kaplan Meier curve with ster_regi
-ggsurvplot(ster_regi_surv, linetype = 1, censor = F, size = 0.5,
+ggsurvplot(ster_regi_surv, linetype = 1, censor = F, size = 1,
                            pval = FALSE, conf.int = F,
                            palette = c("darkblue", "darkred"),
                            risk.table.col = "strata", # Change risk table color by groups
                            ggtheme = theme_risktable_boxed(), # Change ggplot2 theme
-                           text=element_text(size=16,  family="serif"),
+                           text=element_text(size=30,  family="serif"),
+                           risk.table.fontsize = 30,
                            xlim = c(0,3000),
                            ylim = c(0.8, 1),
                            text = 'serif',
@@ -167,7 +169,7 @@ ggsurvplot(ster_regi_surv, linetype = 1, censor = F, size = 0.5,
 
 
 #Kaplan Meier curve with iol_single
-KM_iol_single <- ggsurvplot(iol_single_surv,
+ggsurvplot(iol_single_surv,
                            pval = FALSE, conf.int = F,
                            risk.table.col = "strata", # Change risk table color by groups
                            ggtheme = theme_bw(), # Change ggplot2 theme
@@ -281,11 +283,13 @@ plot(fit_aalen_iol_single, xlim = c(0,3000))
 #       Lin et al. and Wei plot
 ################################################################
 #Fits cox model unweighted
+
+set.seed(100)
 cox_model <- cox.aalen(Surv(time, glau_eye_single==1) ~ prop(ster_regi) + prop(age_at_surg_center) + prop(iol_single) + prop(axis_lenght_center) + prop(num_re_op), 
                        data = df)
 summary(cox_model)
 par(mfrow=c(2,3))
-plot(cox_model,score=1)
+plot(cox_model,score=2,xlab="Time (days)", family = 'serif', cex.axis = 1.5, cex.lab = 1.5)
 
 
 #Fits cox model weighted
@@ -293,7 +297,7 @@ cox_model_w <- cox.aalen(Surv(time, glau_eye_single==1) ~ prop(ster_regi) + prop
                        weighted.test = 1, data = df)
 summary(cox_model_w)
 par(mfrow=c(2,3))
-plot(cox_model_w,score=1)
+plot(cox_model_w,score=T,xlab="Time (days)")
 
 
 
