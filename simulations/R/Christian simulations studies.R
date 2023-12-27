@@ -418,12 +418,170 @@ lines(truth$taus, truth$true_vals)
 
 
 ################################################################
+#               Full data one-step estimator of ATE
+################################################################
+
+n_sims <- 250
+ba_t <- -1
+tau <- 3
+n <- 100
+
+NAIVE_lst   <- list()
+OSECOR_lst  <- list()
+OSEMOR_lst  <- list()
+OSEMPS_lst  <- list()
+
+
+for (j in 1:n_sims){
+  data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+                                 ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+  data_A0 <- data %>% mutate(A = 0)
+  data_A1 <- data %>% mutate(A = 1)
+  status <- rep(1, nrow(data))
+  
+  ######################################################
+  
+  ######################################################
+  fit_coxph_full_data     <- coxph(Surv(T_true, status) ~ A + X + Z, data = data)
+  fit_coxph_full_data_mis <- coxph(Surv(T_true, status) ~ A + fake_1 + fake_2 + fake_3, data = data)
+  ######################################################
+  
+  ######################################################
+  survfit <- survfit(fit_coxph_full_data, newdata = data)
+  survfit_0 <- survfit(fit_coxph_full_data, newdata = data_A0)
+  survfit_1 <- survfit(fit_coxph_full_data, newdata = data_A1)
+  
+  cum_haz   <- t(survfit$cumhaz)
+  cum_haz_0 <- t(survfit_0$cumhaz)
+  cum_haz_1 <- t(survfit_1$cumhaz)
+  
+  surv    <- t(survfit$surv)
+  surv_0  <- t(survfit_0$surv)
+  surv_1  <- t(survfit_1$surv)
+  ######################################################
+  
+  ######################################################
+  survfit_mis <- survfit(fit_coxph_full_data_mis, newdata = data)
+  survfit_0_mis <- survfit(fit_coxph_full_data_mis, newdata = data_A0)
+  survfit_1_mis <- survfit(fit_coxph_full_data_mis, newdata = data_A1)
+  
+  cum_haz_mis   <- t(survfit_mis$cumhaz)
+  cum_haz_0_mis <- t(survfit_0_mis$cumhaz)
+  cum_haz_1_mis <- t(survfit_1_mis$cumhaz)
+  
+  surv_mis    <- t(survfit_mis$surv)
+  surv_0_mis  <- t(survfit_0_mis$surv)
+  surv_1_mis  <- t(survfit_1_mis$surv)
+  ######################################################
+  
+  ######################################################
+  props <- propensity(data, glm = T)
+  pi_0 <- props$propens$pi_a_0
+  pi_1 <- props$propens$pi_a_1
+  
+  props_mis <- propensity(data, glm = F)
+  pi_1_mis <- props_mis$propens$pi_a_1
+  
+  ######################################################
+  
+  at_risk <- outer(data$T_true, survfit$time, '>=')
+  
+  NAIVE   <- colMeans(surv_1)
+  OSECOR  <- colMeans(surv_1 + t(pi_1*t((at_risk - surv_1))))
+  OSEMOR  <- colMeans(surv_1_mis + t(pi_1*t((at_risk - surv_1_mis))))
+  OSEMPS  <- colMeans(surv_1 + t(pi_1_mis*t((at_risk - surv_1))))
+  
+  
+  NAIVE_new_element         <- list(jump_times = survfit$time, one_step_estimator = NAIVE)
+  OSECOR_new_element        <- list(jump_times = survfit$time, one_step_estimator = OSECOR)
+  OSEMOR_new_element        <- list(jump_times = survfit$time, one_step_estimator = OSEMOR)
+  OSEMPS_new_element        <- list(jump_times = survfit$time, one_step_estimator = OSEMPS)
+  
+  
+  NAIVE_lst[[length(NAIVE_lst) + 1]]    <- NAIVE_new_element
+  OSECOR_lst[[length(OSECOR_lst) + 1]]  <- OSECOR_new_element
+  OSEMOR_lst[[length(OSEMOR_lst) + 1]]  <- OSEMOR_new_element
+  OSEMPS_lst[[length(OSEMPS_lst) + 1]]  <- OSEMPS_new_element
+  
+  print(paste0('Simulation ',j,' done'))
+}
+
+taus <- seq(0,10,0.1)
+true_values <- c(1, 0.9445018885, 0.8926635295, 0.8442070210, 0.7988779580, 0.7564432805, 0.7166893300, 0.6794200945, 0.6444556235, 0.6116305930, 0.5807930095, 0.5518030325, 0.5245319145, 0.4988610342, 0.4746810230, 0.4518909722, 0.4303977123, 0.4101151594, 0.3909637198, 0.3728697502, 0.3557650644, 0.3395864864, 0.3242754414, 0.3097775838, 0.2960424576, 0.2830231864, 0.2706761908, 0.2589609291, 0.2478396611, 0.2372772317, 0.2272408724, 0.2177000200, 0.2086261504, 0.1999926251, 0.1917745521, 0.1839486566, 0.1764931627, 0.1693876852, 0.1626131289, 0.1561515970, 0.1499863059, 0.1441015072, 0.1384824156, 0.1331151419, 0.1279866322, 0.1230846106, 0.1183975268, 0.1139145076, 0.1096253120, 0.1055202892, 0.1015903404, 0.09782688290, 0.09422181685, 0.09076749430, 0.08745669090, 0.08428257910, 0.08123870330, 0.07831895710, 0.07551756175, 0.07282904615, 0.07024822825, 0.06777019785, 0.06539030030, 0.06310412150, 0.06090747370, 0.05879638235, 0.05676707385, 0.05481596400, 0.05293964720, 0.05113488645, 0.04939860376, 0.04772787140, 0.04611990356, 0.04457204858, 0.04308178164, 0.04164669786, 0.04026450592, 0.03893302196, 0.03765016386, 0.03641394598, 0.03522247400, 0.03407394028, 0.03296661932, 0.03189886360, 0.03086909958, 0.02987582396, 0.02891760016, 0.02799305502, 0.02710087560, 0.02623980623, 0.02540864572, 0.02460624472, 0.02383150314, 0.02308336787, 0.02236083049, 0.02166292516, 0.02098872656, 0.02033734808, 0.01970793992, 0.01909968745, 0.01851180954)
+truth <- data.frame('taus' = taus, 'true_vals' = true_values)
+
+plot(OSECOR_lst[[1]][[1]], 
+     OSECOR_lst[[1]][[2]], 
+     main = 'Correctly specified',
+     xlab = 'Time', 
+     ylab = 'Estimate', 
+     type = 'l', 
+     col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3))
+for (i in 2:length(OSECOR_lst)){
+  lines(OSECOR_lst[[i]][[1]], OSECOR_lst[[i]][[2]],
+        col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3))
+}
+lines(truth$taus, truth$true_vals)
+
+
+plot(OSEMOR_lst[[1]][[1]], 
+     OSEMOR_lst[[1]][[2]], 
+     main = 'Misspecified survival',
+     xlab = 'Time', 
+     ylab = 'Estimate', 
+     type = 'l', 
+     col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3),
+     ylim = c(0,1))
+for (i in 2:length(OSEMOR_lst)){
+  lines(OSEMOR_lst[[i]][[1]], OSEMOR_lst[[i]][[2]],
+        col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3))
+}
+lines(truth$taus, truth$true_vals)
+
+plot(OSEMPS_lst[[1]][[1]], 
+     OSEMPS_lst[[1]][[2]], 
+     main = "Misspecified propensity",
+     xlab = 'Time', 
+     ylab = 'Estimate', 
+     type = 'l', 
+     col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3),
+     ylim = c(0,1))
+for (i in 2:length(OSEMPS_lst)){
+  lines(OSEMPS_lst[[i]][[1]], OSEMPS_lst[[i]][[2]],
+        col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3))
+}
+lines(truth$taus, truth$true_vals)
+
+
+plot(NAIVE_lst[[1]][[1]], 
+     NAIVE_lst[[1]][[2]], 
+     main = "Naive estimate",
+     xlab = 'Time', 
+     ylab = 'Estimate', 
+     type = 'l', 
+     col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3),
+     ylim = c(0,1))
+for (i in 2:length(NAIVE_lst)){
+  lines(NAIVE_lst[[i]][[1]], NAIVE_lst[[i]][[2]],
+        col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3))
+}
+lines(truth$taus, truth$true_vals)
+
+
+
+
+
+
+
+
+
+################################################################
 #                     Generating data
 ################################################################
 n_sims <- 1000
 ba_t <- -1
 tau <- 3
-n <- 300
+n <- 100
 OSEC_lst      <- list()
 OSEM_lst      <- list()
 OSEBM_lst     <- list()
@@ -433,6 +591,9 @@ NAIVE_MIS_lst <- list()
 for (j in 1:n_sims){
   data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
                                  ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+  
+  data_cens <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+                                      ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
   
   data_A0 <- data %>% mutate(A = 0)
   data_A1 <- data %>% mutate(A = 1)
@@ -532,11 +693,11 @@ for (j in 1:n_sims){
   ################################################################
   #                     Censoring distribution
   ################################################################
-  fit_coxph_cens <- coxph(Surv(T_obs, Uncensored == F) ~ A + X + Z, data = data)
+  fit_coxph_cens <- coxph(Surv(T_obs, Uncensored == F) ~ A + X + Z, data = data_cens)
   censfit <- survfit(fit_coxph_cens, newdata = data)
   cens <- censfit$surv
   
-  fit_coxph_cens_mis <- coxph(Surv(T_obs, Uncensored == F) ~ A + fake_1 + fake_2 + fake_3, data = data)
+  fit_coxph_cens_mis <- coxph(Surv(T_obs, Uncensored == F) ~ A + fake_1 + fake_2 + fake_3, data = data_cens)
   censfit_mis <- survfit(fit_coxph_cens_mis, newdata = data)
   cens_mis <- censfit_mis$surv
   
@@ -714,6 +875,297 @@ for (i in 2:length(NAIVE_MIS_lst)){
         col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3))
 }
 lines(truth$taus, truth$true_vals)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##############LEGACY##############
+
+
+ba_t <- -1
+n <- 1000
+data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+                               ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+
+
+model <- cox.aalen(Surv(T_true, rep(1, nrow(data))) ~ prop(A) + prop(X^2) + prop(Z^2), data)
+covar <- get_oracle_covar(data)
+
+props <- propensity(data)
+
+cum_matrix <- get_cum(model)
+jump_times <- get_jump_times(cum_matrix)
+cum_bas_haz <- get_cum_base_haz(cum_matrix)
+no_jumps <- get_row_length(cum_matrix)
+beta_hat <- get_param_est(model)
+
+
+covar_A0 <- covar %>% mutate(A = 0)
+covar_A1 <- covar %>% mutate(A = 1)
+
+#Cum haz obs
+cum_hat_obs <- predict_cox.aalen(covar = covar, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+
+#Survival functions
+S_hat <- exp(-cum_hat_obs)
+S_hat0 <- exp(-cum_hat0_obs)
+S_hat1 <- exp(-cum_hat1_obs)
+at_risk <- outer(data$T_true, jump_times, '>=')
+
+mu_hat <- exp(-cum_hat1_obs)
+pi_hat <- 1/2  #props$probs[,1]
+at_risk <- outer(data$T_true, jump_times, '>=')
+A <- data$A
+
+frac <- (A/pi_hat) * (at_risk - mu_hat)
+
+mean(mu_hat + frac)
+mean(mu_hat)
+
+
+
+
+
+
+
+
+
+ba_t <- log(2)
+n <- 1000
+data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+                               ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+
+
+model <- cox.aalen(Surv(T_true, rep(1, nrow(data))) ~ prop(A) + prop(X) + prop(Z), data)
+covar <- get_oracle_covar(data)
+
+props <- propensity(data)
+
+cum_matrix <- get_cum(model)
+jump_times <- get_jump_times(cum_matrix)
+cum_bas_haz <- get_cum_base_haz(cum_matrix)
+no_jumps <- get_row_length(cum_matrix)
+beta_hat <- get_param_est(model)
+
+
+covar_A0 <- covar %>% mutate(A = 0)
+covar_A1 <- covar %>% mutate(A = 1)
+
+#Cum haz obs
+cum_hat_obs <- predict_cox.aalen(covar = covar, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+
+#Survival functions
+S_hat <- exp(-cum_hat_obs)
+S_hat0 <- exp(-cum_hat0_obs)
+S_hat1 <- exp(-cum_hat1_obs)
+at_risk <- outer(data$T_true, jump_times, '>=')
+dN <- outer(data$T_true, jump_times, '==')
+exp_0_multiplier <- exp(data.matrix(covar_A0) %*% beta_hat)
+d_cum_base_haz <- c(0, cum_bas_haz[-1]-cum_bas_haz[-no_jumps])
+pi_0 <- props$propens$pi_a_0
+pi_1 <- props$propens$pi_a_1
+
+time_ind <- jump_times < 2
+
+
+part1 <- pi_0 * exp_0_multiplier * rowSums(t(t(at_risk*S_hat0) * d_cum_base_haz)[,time_ind])
+part2 <- pi_1 * rowSums((S_hat1 * dN)[,time_ind])
+part3 <- - (pi_0 + pi_1)*P_treatment_extend_survival(model = model, max_time = 3, model_cov = covar)$res
+part4 <- P_treatment_extend_survival(model = model, max_time = 3, model_cov = covar)$res
+
+1 - mean(part1 + part2 + part3 + part4)
+mean(part4)
+
+
+
+
+
+
+
+
+n_sims <- 2000
+simulation <- matrix(data = NA, ncol = 2, nrow = n_sims)
+ba_t <- -1
+tau <- 3
+n <- 900
+
+for (j in 1:n_sims){
+  data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+                                 ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+  
+  
+  model_surv <- oracle_model(data)
+  model_cens <- oracle_cens_model(data)
+  
+  covar_true <- get_oracle_covar(data)
+  covar_cens <- get_oracle_cens_covar(data)
+  
+  
+  props <- propensity(data)
+  
+  
+  
+  cum_matrix_obs <- get_cum(model_surv)
+  jump_times_obs <- get_jump_times(cum_matrix_obs)
+  cum_bas_haz_obs <- get_cum_base_haz(cum_matrix_obs)
+  no_jumps_obs <- get_row_length(cum_matrix_obs)
+  beta_hat_obs <- get_param_est(model_surv)
+  
+  
+  #breslow <- breslow_estimator(data_for_breslow, beta_hat_obs, T_corr = F)
+  #cum_bas_haz_obs_breslow <- breslow$breslow
+  #breslow_jump_times <- breslow$jump_times_breslow
+  #no_jump_times_breslow <- length(breslow_jump_times)
+  #
+  #cum_bas_haz_obs = rep(NA,no_jumps_obs) 
+  #for(i in 1:no_jumps_obs){
+  #  cum_bas_haz_obs[i] = cum_bas_haz_obs_breslow[max((1:no_jump_times_breslow)[breslow_jump_times<=jump_times_obs[i]])]
+  #}
+  
+  #plot(jump_times_obs, cum_bas_haz_obs, type = 'l')
+  #lines(jump_times_obs, cum_bas_haz_obs_old)
+  #lines(breslow_jump_times, cum_bas_haz_obs_breslow)
+  
+  covar_A0 <- covar_true %>% mutate(A = 0)
+  covar_A1 <- covar_true %>% mutate(A = 1)
+  
+  #Cum haz obs
+  cum_hat_obs <- predict_cox.aalen(covar = covar_true, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
+  cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
+  cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
+  
+  #Survival functions
+  S_hat_obs <- exp(-cum_hat_obs)
+  S_hat0_obs <- exp(-cum_hat0_obs)
+  S_hat1_obs <- exp(-cum_hat1_obs)
+  
+  
+  #Censoring
+  cum_matrix_cens <- get_cum(model_cens)
+  jump_times_cens <- get_jump_times(cum_matrix_cens)
+  cum_bas_haz_cens <- get_cum_base_haz(cum_matrix_cens)
+  no_jumps_cens <- get_row_length(cum_matrix_cens)
+  beta_hat_cens <- get_param_est(model_cens)
+  
+  
+  #breslow_cens <- breslow_estimator_cens(data_for_breslow, beta_hat_cens, cens_corr = T)
+  #cum_bas_haz_obs_breslow_cens <- breslow_cens$breslow
+  #breslow_jump_times_cens <- breslow_cens$jump_times_breslow
+  #no_jump_times_breslow_cens <- length(breslow_jump_times_cens)
+  
+  #plot(jump_times_cens, cum_bas_haz_cens, type = 'l')
+  #lines(breslow_jump_times_cens, cum_bas_haz_obs_breslow_cens)
+  #lines(jump_times_cens, cum_bas_haz_cens)
+  
+  #cum_bas_haz_cens = rep(NA,no_jumps_cens) 
+  #for(i in 1:no_jumps_cens){
+  #  cum_bas_haz_cens[i] = cum_bas_haz_obs_breslow_cens[max((1:no_jump_times_breslow_cens)[breslow_jump_times_cens<=jump_times_cens[i]])]
+  #}
+  
+  
+  cum_hat_cens <- predict_cox.aalen(covar = covar_cens, betaHat = beta_hat_cens, cum_base_haz = cum_bas_haz_cens)
+  
+  S_hat_cens <- exp(- cum_hat_cens)
+  
+  
+  Khat_cens = matrix(NA, nrow = n, ncol = no_jumps_obs) 
+  for(i in 1:no_jumps_obs){
+    Khat_cens[,i] = S_hat_cens[,max((1:no_jumps_cens)[jump_times_cens<=jump_times_obs[i]])]
+  }
+  
+  #plot(jump_times_obs, colMeans(Khat_cens), type = 'l')
+  #lines(jump_times_obs, Khat_cens[1,])
+  #lines(jump_times_cens, colMeans(S_hat_cens))
+  
+  
+  #Martingales
+  T_obs <- get_observed_times(data)
+  
+  dN <- outer(T_obs, jump_times_obs, '==')
+  
+  at_risk <- outer(T_obs, jump_times_obs, '>=')
+  dL <- cbind(0, cum_hat_obs[,-1] - cum_hat_obs[,-ncol(cum_hat_obs)])
+  
+  dM <- dN - at_risk * dL
+  
+  #par(mfrow = c(1,1))
+  #plot(jump_times_obs, cumsum(colSums(dM)), type = 'l', ylab = 'Kummuleret dM.')
+  #plot(jump_times_obs, cumsum(colSums(dN)), type = 'l', ylab = 'Kummuleret dN., dL.', col = 'red')
+  #lines(jump_times_obs, cumsum(colSums(at_risk*dL)), col = alpha('blue', 0.2))
+  
+  #plot(jump_times_obs, cumsum(dM[233,]), type = 'l', ylim = c(-3,1.1))
+  #lines(jump_times_obs, cumsum(dN[233,]))
+  #lines(jump_times_obs, -cumsum(at_risk[233,]*dL[233,]))
+  
+  #EIF
+  
+  tau <- 3
+  
+  d_cum_base_haz <- c(0, cum_bas_haz_obs[-1]-cum_bas_haz_obs[-no_jumps_obs])
+  pi_0 <- props$propens$pi_a_0
+  pi_1 <- props$propens$pi_a_1
+  
+  S_hat1_obs_tau <- S_hat1_obs[,jump_times_obs <= tau]
+  S_hat0_obs_tau <- S_hat0_obs[,jump_times_obs <= tau]
+  S_hat_obs_tau <- S_hat_obs[,jump_times_obs <= tau]
+  Khat_cens_tau <- Khat_cens[,jump_times_obs <= tau]
+  dM_tau <- dM[,jump_times_obs <= tau]
+  
+  
+  delta <- S_hat1_obs_tau - S_hat0_obs_tau
+  
+  g <- pi_1 - pi_0
+  
+  
+  inner_integrand <- 1/(S_hat_obs_tau * Khat_cens_tau) * dM_tau
+  integral <- t(apply(inner_integrand, MARGIN = 1, FUN = cumsum))
+  
+  h <- g*S_hat_obs_tau * integral
+  EIF <- delta + h
+  
+  
+  simulation[j,1] <- mean(EIF)
+  simulation[j,2] <- mean(delta)
+  print(paste0('Simulation ',j,' done'))
+}
+mean(simulation[,1])
+mean(simulation[,2])
+
+
+
+
+
+#FF EIF: 0.2328531
+#FF naive: 0.2350929
+
+#TT EIF: 0.1807568
+#TT naive: 0.1798884
+
+
+#TF EIF: 0.2287061
+#TF naive: 0.2350452
+
+
 
 
 

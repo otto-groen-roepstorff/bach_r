@@ -5,6 +5,7 @@ library(tidyverse)  #For tidy data
 library(ggplot2)    #For plotting
 library(e1071)      #For moment calculations
 library(Pareto)
+library(gridExtra)
 #-----------------
 
 
@@ -46,8 +47,16 @@ submodels_long$epsilon <- rep(epsilon, each = length(sim_data))
 #Plotting densities stratified on epsilon value
 density_plot <- ggplot(submodels_long, aes(x = X.axis, color = epsilon, fill = variable)) +
   geom_line(aes(y = value), linetype = "solid") +
-  scale_color_gradient(low = "red", high = "steelblue", name = "Epsilon value") +  # Adjust low and high colors as needed
+  scale_color_gradient(low = "lightgrey", high = "black", name = "Epsilon value") +  # Adjust low and high colors as needed
   theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(color = "black"),
+    text=element_text(size=16,  family="serif"),
+    legend.position = c(0.8, 0.8),
+    legend.box = "horizontal"
+  ) +
   labs(title = "A single path formed from convex combinations of distributions",
        x = "Z",
        y = "Density") + xlim(c(0,3))
@@ -77,14 +86,25 @@ slope <- 3/10
 #Plotting 
 functional_plot <- ggplot(df_functionals, aes(x = epsilon, y = functionals)) +
   geom_line(linetype = "solid") + 
-  geom_segment(aes(x = 0, xend = 1, y = functionals[101] - slope, yend = functionals[101]), linetype = 'dashed') +
-  geom_text(aes(x = 0.1, y = 0.44, label = '1-step estimator')) +
-  geom_segment(aes(x = 0, xend = 0, y = functionals[1] - 1/20, yend = functionals[1]), linetype = 'dotted') +
-  geom_text(aes(x = 0.023, y = 0.48, label = 'R2')) +
-  theme_classic() +
+  #geom_segment(aes(x = 0, xend = 1, y = functionals[101] - slope, yend = functionals[101]), linetype = 'dashed') +
+  #geom_text(aes(x = 0.1, y = 0.44, label = '1-step estimator')) +
+  #geom_segment(aes(x = 0, xend = 0, y = functionals[1] - 1/20, yend = functionals[1]), linetype = 'dotted') +
+  #geom_text(aes(x = 0.023, y = 0.48, label = 'R2')) +
+  theme_bw() +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(color = "black"),
+    text=element_text(size=16,  family="serif"),
+    legend.position = c(0.8, 0.8),
+    legend.box = "horizontal"
+  ) +
   labs(title = "Functional values along the path",
        x = "Epsilon",
        y = "Functional") + ylim(c(0.4,0.8))
+
+
+grid.arrange(density_plot, functional_plot, ncol = 2)
 
 
 #Saving plots

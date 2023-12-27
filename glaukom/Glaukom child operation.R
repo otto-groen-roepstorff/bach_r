@@ -153,16 +153,19 @@ lines(ster_regi_times, ster_regi_1_surv, col = 'darkred')
 
 #Kaplan Meier curve with ster_regi
 ggsurvplot(ster_regi_surv, linetype = 1, censor = F, size = 1,
-                           pval = FALSE, conf.int = F,
-                           palette = c("darkblue", "darkred"),
-                           risk.table.col = "strata", # Change risk table color by groups
-                           ggtheme = theme_risktable_boxed(), # Change ggplot2 theme
-                           text=element_text(size=30,  family="serif"),
-                           risk.table.fontsize = 30,
-                           xlim = c(0,3000),
-                           ylim = c(0.8, 1),
-                           text = 'serif',
-                           legend = c(0.8,0.8))
+          pval = FALSE, conf.int = F,
+          palette = c("darkred", "darkblue"),
+          risk.table.col = "strata", # Change risk table color by groups
+          ggtheme = theme_risktable_boxed(), # Change ggplot2 theme
+          legend.labs = c("ster_regi = 0", "ster_regi = 1"),
+          font.x = c(14, "bold"),
+          font.y = c(14, "bold"),
+          font.tickslab = c(12, "plain"),
+          font.legend = c(16, "plain"),
+          xlim = c(0,3000),
+          xlab = "Time (days)",
+          ylim = c(0.8, 1),
+          legend = c(0.8,0.8))
 
 #We see that the survival of the high dose group seems to higher in the first 1500 days but afterwards the opposite seems to be the case
 #Note that the curves cross indicating a violation of the constant proportional hazards
@@ -289,7 +292,7 @@ cox_model <- cox.aalen(Surv(time, glau_eye_single==1) ~ prop(ster_regi) + prop(a
                        data = df)
 summary(cox_model)
 par(mfrow=c(2,3))
-plot(cox_model,score=2,xlab="Time (days)", family = 'serif', cex.axis = 1.5, cex.lab = 1.5)
+plot(cox_model,score=2,xlab="Time (days)", family = 'serif', cex.axis = 1.8, cex.lab = 1.5)
 
 
 #Fits cox model weighted
