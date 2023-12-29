@@ -1,10 +1,10 @@
 library(glmnet)
 
-n_sims <- 250
+n_sims <- 2000
 simulation <- matrix(data = NA, ncol = 5, nrow = n_sims)
 ba_t <- -1
 tau <- 3
-n <- 1000
+n <- 50
 
 start.time <- Sys.time()
 for (j in 1:n_sims){
@@ -24,7 +24,7 @@ for (j in 1:n_sims){
   covar_cens <- get_oracle_cens_covar(data)
   
   
-  props <- propensity(data, glm = F)
+  props <- propensity(data, glm = T)
   
   cum_matrix_obs <- get_cum(model_surv)
   jump_times_obs <- get_jump_times(cum_matrix_obs)
@@ -109,10 +109,10 @@ for (j in 1:n_sims){
   
   dM <- dN - at_risk * dL
   
-  par(mfrow = c(1,1))
-  plot(jump_times_obs, cumsum(colSums(dM)), type = 'l', ylab = 'Kummuleret dM.')
-  plot(jump_times_obs, cumsum(colSums(dN)), type = 'l', ylab = 'Kummuleret dN., dL.', col = 'red')
-  lines(jump_times_obs, cumsum(colSums(at_risk*dL)), col = alpha('blue', 0.2))
+  #par(mfrow = c(1,1))
+  #plot(jump_times_obs, cumsum(colSums(dM)), type = 'l', ylab = 'Kummuleret dM.')
+  #plot(jump_times_obs, cumsum(colSums(dN)), type = 'l', ylab = 'Kummuleret dN., dL.', col = 'red')
+  #lines(jump_times_obs, cumsum(colSums(at_risk*dL)), col = alpha('blue', 0.2))
   
   #plot(jump_times_obs, cumsum(dM[233,]), type = 'l', ylim = c(-3,1.1))
   #lines(jump_times_obs, cumsum(dN[233,]))
@@ -172,10 +172,46 @@ for (j in 1:n_sims){
 }
 end.time <- Sys.time()
 end.time - start.time
-mean(simulation[,4])
 mean(simulation[,3])
-mean(simulation[,5]) 
+mean(simulation[,4])
+mean(simulation[,5])
 
+
+#True value: 0.7215708370
+
+#             n     50          100             200             400           800             1600          3200
+#Naive estimate   0.6086665     0.6607547       0.68665         0.6959826     0.7094471       0.7177696     0.7191623
+#EIF estimate     0.6123555     0.6688572       0.6865309       0.6946947     0.7095038       0.7174959     0.7195862
+#EIF variance     0.01112825    0.005346707     0.003019546     0.001465691   0.0007382434    0.0003714565  0.0001866196
+
+
+x_axis <- 1:7
+naive_bias <- c(0.7215708370-0.6086665, 
+                0.7215708370-0.6607547, 
+                0.7215708370-0.68665, 
+                0.7215708370-0.6959826, 
+                0.7215708370-0.7094471, 
+                0.7215708370-0.7177696, 
+                0.7215708370-0.7191623)
+eif_bias <- c(0.7215708370-0.6123555,
+              0.7215708370-0.6688572,
+              0.7215708370-0.6865309,
+              0.7215708370-0.6946947,
+              0.7215708370-0.7095038,
+              0.7215708370-0.7174959,
+              0.7215708370-0.7195862)
+eif_var <- c(0.01112825,
+             0.005346707,
+             0.003019546,
+             0.001465691,
+             0.0007382434,
+             0.0003714565,
+             0.0001866196)
+
+plot(x_axis, naive_bias, type = 'b', pch = 2)
+points(x_axis, eif_bias, type = 'b', pch = 5)
+
+plot(x_axis, eif_var, type = 'b', pch = 2)
 
 #Variance:  Correctly specified:        0.0005908318
 #           Misspecified propensity:    0.0007062777
@@ -372,7 +408,7 @@ plot(simulation_list[[1]][[1]],
      ylab = 'Estimate', 
      type = 'l', 
      col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3))
-for (i in 24:24){
+for (i in 1:n_sims){
   lines(simulation_list[[i]][[1]], simulation_list[[i]][[2]],
         col = rgb(red = 0.5, green = 0, blue = 0.7, alpha = 0.3))
 }
@@ -424,7 +460,7 @@ lines(truth$taus, truth$true_vals)
 n_sims <- 250
 ba_t <- -1
 tau <- 3
-n <- 100
+n <- 900
 
 NAIVE_lst   <- list()
 OSECOR_lst  <- list()
@@ -461,7 +497,7 @@ for (j in 1:n_sims){
   ######################################################
   
   ######################################################
-  survfit_mis <- survfit(fit_coxph_full_data_mis, newdata = data)
+  survfit_mis   <- survfit(fit_coxph_full_data_mis, newdata = data)
   survfit_0_mis <- survfit(fit_coxph_full_data_mis, newdata = data_A0)
   survfit_1_mis <- survfit(fit_coxph_full_data_mis, newdata = data_A1)
   
@@ -487,7 +523,7 @@ for (j in 1:n_sims){
   at_risk <- outer(data$T_true, survfit$time, '>=')
   
   NAIVE   <- colMeans(surv_1)
-  OSECOR  <- colMeans(surv_1 + t(pi_1*t((at_risk - surv_1))))
+  OSECOR  <- colMeans(surv_1 + t(pi_1*t(at_risk - surv_1)))
   OSEMOR  <- colMeans(surv_1_mis + t(pi_1*t((at_risk - surv_1_mis))))
   OSEMPS  <- colMeans(surv_1 + t(pi_1_mis*t((at_risk - surv_1))))
   
@@ -581,7 +617,7 @@ lines(truth$taus, truth$true_vals)
 n_sims <- 1000
 ba_t <- -1
 tau <- 3
-n <- 100
+n <- 600
 OSEC_lst      <- list()
 OSEM_lst      <- list()
 OSEBM_lst     <- list()
@@ -611,7 +647,7 @@ for (j in 1:n_sims){
   survfit_all <- survfit(fit_coxph, newdata = data)
   survfit_all_mis <- survfit(fit_coxph_mis, newdata = data)
   
-  #plot(survfit_all$time, cumsum(fit_coxph$residuals), type = 'l')
+  #plot(survfit_all$time, cumsum(fit_coxph$residuals), type = 'l', col = 'red')
   #lines(survfit_all_mis$time, cumsum(fit_coxph_mis$residuals), type = 'l', col = 'blue')
   
   
@@ -898,275 +934,275 @@ lines(truth$taus, truth$true_vals)
 ##############LEGACY##############
 
 
-ba_t <- -1
-n <- 1000
-data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
-                               ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
-
-
-model <- cox.aalen(Surv(T_true, rep(1, nrow(data))) ~ prop(A) + prop(X^2) + prop(Z^2), data)
-covar <- get_oracle_covar(data)
-
-props <- propensity(data)
-
-cum_matrix <- get_cum(model)
-jump_times <- get_jump_times(cum_matrix)
-cum_bas_haz <- get_cum_base_haz(cum_matrix)
-no_jumps <- get_row_length(cum_matrix)
-beta_hat <- get_param_est(model)
-
-
-covar_A0 <- covar %>% mutate(A = 0)
-covar_A1 <- covar %>% mutate(A = 1)
-
-#Cum haz obs
-cum_hat_obs <- predict_cox.aalen(covar = covar, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
-cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
-cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
-
-#Survival functions
-S_hat <- exp(-cum_hat_obs)
-S_hat0 <- exp(-cum_hat0_obs)
-S_hat1 <- exp(-cum_hat1_obs)
-at_risk <- outer(data$T_true, jump_times, '>=')
-
-mu_hat <- exp(-cum_hat1_obs)
-pi_hat <- 1/2  #props$probs[,1]
-at_risk <- outer(data$T_true, jump_times, '>=')
-A <- data$A
-
-frac <- (A/pi_hat) * (at_risk - mu_hat)
-
-mean(mu_hat + frac)
-mean(mu_hat)
-
-
-
-
-
-
-
-
-
-ba_t <- log(2)
-n <- 1000
-data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
-                               ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
-
-
-model <- cox.aalen(Surv(T_true, rep(1, nrow(data))) ~ prop(A) + prop(X) + prop(Z), data)
-covar <- get_oracle_covar(data)
-
-props <- propensity(data)
-
-cum_matrix <- get_cum(model)
-jump_times <- get_jump_times(cum_matrix)
-cum_bas_haz <- get_cum_base_haz(cum_matrix)
-no_jumps <- get_row_length(cum_matrix)
-beta_hat <- get_param_est(model)
-
-
-covar_A0 <- covar %>% mutate(A = 0)
-covar_A1 <- covar %>% mutate(A = 1)
-
-#Cum haz obs
-cum_hat_obs <- predict_cox.aalen(covar = covar, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
-cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
-cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
-
-#Survival functions
-S_hat <- exp(-cum_hat_obs)
-S_hat0 <- exp(-cum_hat0_obs)
-S_hat1 <- exp(-cum_hat1_obs)
-at_risk <- outer(data$T_true, jump_times, '>=')
-dN <- outer(data$T_true, jump_times, '==')
-exp_0_multiplier <- exp(data.matrix(covar_A0) %*% beta_hat)
-d_cum_base_haz <- c(0, cum_bas_haz[-1]-cum_bas_haz[-no_jumps])
-pi_0 <- props$propens$pi_a_0
-pi_1 <- props$propens$pi_a_1
-
-time_ind <- jump_times < 2
-
-
-part1 <- pi_0 * exp_0_multiplier * rowSums(t(t(at_risk*S_hat0) * d_cum_base_haz)[,time_ind])
-part2 <- pi_1 * rowSums((S_hat1 * dN)[,time_ind])
-part3 <- - (pi_0 + pi_1)*P_treatment_extend_survival(model = model, max_time = 3, model_cov = covar)$res
-part4 <- P_treatment_extend_survival(model = model, max_time = 3, model_cov = covar)$res
-
-1 - mean(part1 + part2 + part3 + part4)
-mean(part4)
-
-
-
-
-
-
-
-
-n_sims <- 2000
-simulation <- matrix(data = NA, ncol = 2, nrow = n_sims)
-ba_t <- -1
-tau <- 3
-n <- 900
-
-for (j in 1:n_sims){
-  data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
-                                 ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
-  
-  
-  model_surv <- oracle_model(data)
-  model_cens <- oracle_cens_model(data)
-  
-  covar_true <- get_oracle_covar(data)
-  covar_cens <- get_oracle_cens_covar(data)
-  
-  
-  props <- propensity(data)
-  
-  
-  
-  cum_matrix_obs <- get_cum(model_surv)
-  jump_times_obs <- get_jump_times(cum_matrix_obs)
-  cum_bas_haz_obs <- get_cum_base_haz(cum_matrix_obs)
-  no_jumps_obs <- get_row_length(cum_matrix_obs)
-  beta_hat_obs <- get_param_est(model_surv)
-  
-  
-  #breslow <- breslow_estimator(data_for_breslow, beta_hat_obs, T_corr = F)
-  #cum_bas_haz_obs_breslow <- breslow$breslow
-  #breslow_jump_times <- breslow$jump_times_breslow
-  #no_jump_times_breslow <- length(breslow_jump_times)
-  #
-  #cum_bas_haz_obs = rep(NA,no_jumps_obs) 
-  #for(i in 1:no_jumps_obs){
-  #  cum_bas_haz_obs[i] = cum_bas_haz_obs_breslow[max((1:no_jump_times_breslow)[breslow_jump_times<=jump_times_obs[i]])]
-  #}
-  
-  #plot(jump_times_obs, cum_bas_haz_obs, type = 'l')
-  #lines(jump_times_obs, cum_bas_haz_obs_old)
-  #lines(breslow_jump_times, cum_bas_haz_obs_breslow)
-  
-  covar_A0 <- covar_true %>% mutate(A = 0)
-  covar_A1 <- covar_true %>% mutate(A = 1)
-  
-  #Cum haz obs
-  cum_hat_obs <- predict_cox.aalen(covar = covar_true, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
-  cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
-  cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
-  
-  #Survival functions
-  S_hat_obs <- exp(-cum_hat_obs)
-  S_hat0_obs <- exp(-cum_hat0_obs)
-  S_hat1_obs <- exp(-cum_hat1_obs)
-  
-  
-  #Censoring
-  cum_matrix_cens <- get_cum(model_cens)
-  jump_times_cens <- get_jump_times(cum_matrix_cens)
-  cum_bas_haz_cens <- get_cum_base_haz(cum_matrix_cens)
-  no_jumps_cens <- get_row_length(cum_matrix_cens)
-  beta_hat_cens <- get_param_est(model_cens)
-  
-  
-  #breslow_cens <- breslow_estimator_cens(data_for_breslow, beta_hat_cens, cens_corr = T)
-  #cum_bas_haz_obs_breslow_cens <- breslow_cens$breslow
-  #breslow_jump_times_cens <- breslow_cens$jump_times_breslow
-  #no_jump_times_breslow_cens <- length(breslow_jump_times_cens)
-  
-  #plot(jump_times_cens, cum_bas_haz_cens, type = 'l')
-  #lines(breslow_jump_times_cens, cum_bas_haz_obs_breslow_cens)
-  #lines(jump_times_cens, cum_bas_haz_cens)
-  
-  #cum_bas_haz_cens = rep(NA,no_jumps_cens) 
-  #for(i in 1:no_jumps_cens){
-  #  cum_bas_haz_cens[i] = cum_bas_haz_obs_breslow_cens[max((1:no_jump_times_breslow_cens)[breslow_jump_times_cens<=jump_times_cens[i]])]
-  #}
-  
-  
-  cum_hat_cens <- predict_cox.aalen(covar = covar_cens, betaHat = beta_hat_cens, cum_base_haz = cum_bas_haz_cens)
-  
-  S_hat_cens <- exp(- cum_hat_cens)
-  
-  
-  Khat_cens = matrix(NA, nrow = n, ncol = no_jumps_obs) 
-  for(i in 1:no_jumps_obs){
-    Khat_cens[,i] = S_hat_cens[,max((1:no_jumps_cens)[jump_times_cens<=jump_times_obs[i]])]
-  }
-  
-  #plot(jump_times_obs, colMeans(Khat_cens), type = 'l')
-  #lines(jump_times_obs, Khat_cens[1,])
-  #lines(jump_times_cens, colMeans(S_hat_cens))
-  
-  
-  #Martingales
-  T_obs <- get_observed_times(data)
-  
-  dN <- outer(T_obs, jump_times_obs, '==')
-  
-  at_risk <- outer(T_obs, jump_times_obs, '>=')
-  dL <- cbind(0, cum_hat_obs[,-1] - cum_hat_obs[,-ncol(cum_hat_obs)])
-  
-  dM <- dN - at_risk * dL
-  
-  #par(mfrow = c(1,1))
-  #plot(jump_times_obs, cumsum(colSums(dM)), type = 'l', ylab = 'Kummuleret dM.')
-  #plot(jump_times_obs, cumsum(colSums(dN)), type = 'l', ylab = 'Kummuleret dN., dL.', col = 'red')
-  #lines(jump_times_obs, cumsum(colSums(at_risk*dL)), col = alpha('blue', 0.2))
-  
-  #plot(jump_times_obs, cumsum(dM[233,]), type = 'l', ylim = c(-3,1.1))
-  #lines(jump_times_obs, cumsum(dN[233,]))
-  #lines(jump_times_obs, -cumsum(at_risk[233,]*dL[233,]))
-  
-  #EIF
-  
-  tau <- 3
-  
-  d_cum_base_haz <- c(0, cum_bas_haz_obs[-1]-cum_bas_haz_obs[-no_jumps_obs])
-  pi_0 <- props$propens$pi_a_0
-  pi_1 <- props$propens$pi_a_1
-  
-  S_hat1_obs_tau <- S_hat1_obs[,jump_times_obs <= tau]
-  S_hat0_obs_tau <- S_hat0_obs[,jump_times_obs <= tau]
-  S_hat_obs_tau <- S_hat_obs[,jump_times_obs <= tau]
-  Khat_cens_tau <- Khat_cens[,jump_times_obs <= tau]
-  dM_tau <- dM[,jump_times_obs <= tau]
-  
-  
-  delta <- S_hat1_obs_tau - S_hat0_obs_tau
-  
-  g <- pi_1 - pi_0
-  
-  
-  inner_integrand <- 1/(S_hat_obs_tau * Khat_cens_tau) * dM_tau
-  integral <- t(apply(inner_integrand, MARGIN = 1, FUN = cumsum))
-  
-  h <- g*S_hat_obs_tau * integral
-  EIF <- delta + h
-  
-  
-  simulation[j,1] <- mean(EIF)
-  simulation[j,2] <- mean(delta)
-  print(paste0('Simulation ',j,' done'))
-}
-mean(simulation[,1])
-mean(simulation[,2])
-
-
-
-
-
-#FF EIF: 0.2328531
-#FF naive: 0.2350929
-
-#TT EIF: 0.1807568
-#TT naive: 0.1798884
-
-
-#TF EIF: 0.2287061
-#TF naive: 0.2350452
-
-
-
-
-
-
+# ba_t <- -1
+# n <- 1000
+# data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+#                                ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+# 
+# 
+# model <- cox.aalen(Surv(T_true, rep(1, nrow(data))) ~ prop(A) + prop(X^2) + prop(Z^2), data)
+# covar <- get_oracle_covar(data)
+# 
+# props <- propensity(data)
+# 
+# cum_matrix <- get_cum(model)
+# jump_times <- get_jump_times(cum_matrix)
+# cum_bas_haz <- get_cum_base_haz(cum_matrix)
+# no_jumps <- get_row_length(cum_matrix)
+# beta_hat <- get_param_est(model)
+# 
+# 
+# covar_A0 <- covar %>% mutate(A = 0)
+# covar_A1 <- covar %>% mutate(A = 1)
+# 
+# #Cum haz obs
+# cum_hat_obs <- predict_cox.aalen(covar = covar, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+# cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+# cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+# 
+# #Survival functions
+# S_hat <- exp(-cum_hat_obs)
+# S_hat0 <- exp(-cum_hat0_obs)
+# S_hat1 <- exp(-cum_hat1_obs)
+# at_risk <- outer(data$T_true, jump_times, '>=')
+# 
+# mu_hat <- exp(-cum_hat1_obs)
+# pi_hat <- 1/2  #props$probs[,1]
+# at_risk <- outer(data$T_true, jump_times, '>=')
+# A <- data$A
+# 
+# frac <- (A/pi_hat) * (at_risk - mu_hat)
+# 
+# mean(mu_hat + frac)
+# mean(mu_hat)
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# ba_t <- log(2)
+# n <- 1000
+# data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+#                                ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+# 
+# 
+# model <- cox.aalen(Surv(T_true, rep(1, nrow(data))) ~ prop(A) + prop(X) + prop(Z), data)
+# covar <- get_oracle_covar(data)
+# 
+# props <- propensity(data)
+# 
+# cum_matrix <- get_cum(model)
+# jump_times <- get_jump_times(cum_matrix)
+# cum_bas_haz <- get_cum_base_haz(cum_matrix)
+# no_jumps <- get_row_length(cum_matrix)
+# beta_hat <- get_param_est(model)
+# 
+# 
+# covar_A0 <- covar %>% mutate(A = 0)
+# covar_A1 <- covar %>% mutate(A = 1)
+# 
+# #Cum haz obs
+# cum_hat_obs <- predict_cox.aalen(covar = covar, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+# cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+# cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat, cum_base_haz = cum_bas_haz)
+# 
+# #Survival functions
+# S_hat <- exp(-cum_hat_obs)
+# S_hat0 <- exp(-cum_hat0_obs)
+# S_hat1 <- exp(-cum_hat1_obs)
+# at_risk <- outer(data$T_true, jump_times, '>=')
+# dN <- outer(data$T_true, jump_times, '==')
+# exp_0_multiplier <- exp(data.matrix(covar_A0) %*% beta_hat)
+# d_cum_base_haz <- c(0, cum_bas_haz[-1]-cum_bas_haz[-no_jumps])
+# pi_0 <- props$propens$pi_a_0
+# pi_1 <- props$propens$pi_a_1
+# 
+# time_ind <- jump_times < 2
+# 
+# 
+# part1 <- pi_0 * exp_0_multiplier * rowSums(t(t(at_risk*S_hat0) * d_cum_base_haz)[,time_ind])
+# part2 <- pi_1 * rowSums((S_hat1 * dN)[,time_ind])
+# part3 <- - (pi_0 + pi_1)*P_treatment_extend_survival(model = model, max_time = 3, model_cov = covar)$res
+# part4 <- P_treatment_extend_survival(model = model, max_time = 3, model_cov = covar)$res
+# 
+# 1 - mean(part1 + part2 + part3 + part4)
+# mean(part4)
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# 
+# n_sims <- 2000
+# simulation <- matrix(data = NA, ncol = 2, nrow = n_sims)
+# ba_t <- -1
+# tau <- 3
+# n <- 900
+# 
+# for (j in 1:n_sims){
+#   data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+#                                  ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+#   
+#   
+#   model_surv <- oracle_model(data)
+#   model_cens <- oracle_cens_model(data)
+#   
+#   covar_true <- get_oracle_covar(data)
+#   covar_cens <- get_oracle_cens_covar(data)
+#   
+#   
+#   props <- propensity(data)
+#   
+#   
+#   
+#   cum_matrix_obs <- get_cum(model_surv)
+#   jump_times_obs <- get_jump_times(cum_matrix_obs)
+#   cum_bas_haz_obs <- get_cum_base_haz(cum_matrix_obs)
+#   no_jumps_obs <- get_row_length(cum_matrix_obs)
+#   beta_hat_obs <- get_param_est(model_surv)
+#   
+#   
+#   #breslow <- breslow_estimator(data_for_breslow, beta_hat_obs, T_corr = F)
+#   #cum_bas_haz_obs_breslow <- breslow$breslow
+#   #breslow_jump_times <- breslow$jump_times_breslow
+#   #no_jump_times_breslow <- length(breslow_jump_times)
+#   #
+#   #cum_bas_haz_obs = rep(NA,no_jumps_obs) 
+#   #for(i in 1:no_jumps_obs){
+#   #  cum_bas_haz_obs[i] = cum_bas_haz_obs_breslow[max((1:no_jump_times_breslow)[breslow_jump_times<=jump_times_obs[i]])]
+#   #}
+#   
+#   #plot(jump_times_obs, cum_bas_haz_obs, type = 'l')
+#   #lines(jump_times_obs, cum_bas_haz_obs_old)
+#   #lines(breslow_jump_times, cum_bas_haz_obs_breslow)
+#   
+#   covar_A0 <- covar_true %>% mutate(A = 0)
+#   covar_A1 <- covar_true %>% mutate(A = 1)
+#   
+#   #Cum haz obs
+#   cum_hat_obs <- predict_cox.aalen(covar = covar_true, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
+#   cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
+#   cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
+#   
+#   #Survival functions
+#   S_hat_obs <- exp(-cum_hat_obs)
+#   S_hat0_obs <- exp(-cum_hat0_obs)
+#   S_hat1_obs <- exp(-cum_hat1_obs)
+#   
+#   
+#   #Censoring
+#   cum_matrix_cens <- get_cum(model_cens)
+#   jump_times_cens <- get_jump_times(cum_matrix_cens)
+#   cum_bas_haz_cens <- get_cum_base_haz(cum_matrix_cens)
+#   no_jumps_cens <- get_row_length(cum_matrix_cens)
+#   beta_hat_cens <- get_param_est(model_cens)
+#   
+#   
+#   #breslow_cens <- breslow_estimator_cens(data_for_breslow, beta_hat_cens, cens_corr = T)
+#   #cum_bas_haz_obs_breslow_cens <- breslow_cens$breslow
+#   #breslow_jump_times_cens <- breslow_cens$jump_times_breslow
+#   #no_jump_times_breslow_cens <- length(breslow_jump_times_cens)
+#   
+#   #plot(jump_times_cens, cum_bas_haz_cens, type = 'l')
+#   #lines(breslow_jump_times_cens, cum_bas_haz_obs_breslow_cens)
+#   #lines(jump_times_cens, cum_bas_haz_cens)
+#   
+#   #cum_bas_haz_cens = rep(NA,no_jumps_cens) 
+#   #for(i in 1:no_jumps_cens){
+#   #  cum_bas_haz_cens[i] = cum_bas_haz_obs_breslow_cens[max((1:no_jump_times_breslow_cens)[breslow_jump_times_cens<=jump_times_cens[i]])]
+#   #}
+#   
+#   
+#   cum_hat_cens <- predict_cox.aalen(covar = covar_cens, betaHat = beta_hat_cens, cum_base_haz = cum_bas_haz_cens)
+#   
+#   S_hat_cens <- exp(- cum_hat_cens)
+#   
+#   
+#   Khat_cens = matrix(NA, nrow = n, ncol = no_jumps_obs) 
+#   for(i in 1:no_jumps_obs){
+#     Khat_cens[,i] = S_hat_cens[,max((1:no_jumps_cens)[jump_times_cens<=jump_times_obs[i]])]
+#   }
+#   
+#   #plot(jump_times_obs, colMeans(Khat_cens), type = 'l')
+#   #lines(jump_times_obs, Khat_cens[1,])
+#   #lines(jump_times_cens, colMeans(S_hat_cens))
+#   
+#   
+#   #Martingales
+#   T_obs <- get_observed_times(data)
+#   
+#   dN <- outer(T_obs, jump_times_obs, '==')
+#   
+#   at_risk <- outer(T_obs, jump_times_obs, '>=')
+#   dL <- cbind(0, cum_hat_obs[,-1] - cum_hat_obs[,-ncol(cum_hat_obs)])
+#   
+#   dM <- dN - at_risk * dL
+#   
+#   #par(mfrow = c(1,1))
+#   #plot(jump_times_obs, cumsum(colSums(dM)), type = 'l', ylab = 'Kummuleret dM.')
+#   #plot(jump_times_obs, cumsum(colSums(dN)), type = 'l', ylab = 'Kummuleret dN., dL.', col = 'red')
+#   #lines(jump_times_obs, cumsum(colSums(at_risk*dL)), col = alpha('blue', 0.2))
+#   
+#   #plot(jump_times_obs, cumsum(dM[233,]), type = 'l', ylim = c(-3,1.1))
+#   #lines(jump_times_obs, cumsum(dN[233,]))
+#   #lines(jump_times_obs, -cumsum(at_risk[233,]*dL[233,]))
+#   
+#   #EIF
+#   
+#   tau <- 3
+#   
+#   d_cum_base_haz <- c(0, cum_bas_haz_obs[-1]-cum_bas_haz_obs[-no_jumps_obs])
+#   pi_0 <- props$propens$pi_a_0
+#   pi_1 <- props$propens$pi_a_1
+#   
+#   S_hat1_obs_tau <- S_hat1_obs[,jump_times_obs <= tau]
+#   S_hat0_obs_tau <- S_hat0_obs[,jump_times_obs <= tau]
+#   S_hat_obs_tau <- S_hat_obs[,jump_times_obs <= tau]
+#   Khat_cens_tau <- Khat_cens[,jump_times_obs <= tau]
+#   dM_tau <- dM[,jump_times_obs <= tau]
+#   
+#   
+#   delta <- S_hat1_obs_tau - S_hat0_obs_tau
+#   
+#   g <- pi_1 - pi_0
+#   
+#   
+#   inner_integrand <- 1/(S_hat_obs_tau * Khat_cens_tau) * dM_tau
+#   integral <- t(apply(inner_integrand, MARGIN = 1, FUN = cumsum))
+#   
+#   h <- g*S_hat_obs_tau * integral
+#   EIF <- delta + h
+#   
+#   
+#   simulation[j,1] <- mean(EIF)
+#   simulation[j,2] <- mean(delta)
+#   print(paste0('Simulation ',j,' done'))
+# }
+# mean(simulation[,1])
+# mean(simulation[,2])
+# 
+# 
+# 
+# 
+# 
+# #FF EIF: 0.2328531
+# #FF naive: 0.2350929
+# 
+# #TT EIF: 0.1807568
+# #TT naive: 0.1798884
+# 
+# 
+# #TF EIF: 0.2287061
+# #TF naive: 0.2350452
+# 
+# 
+# 
+# 
+# 
+# 

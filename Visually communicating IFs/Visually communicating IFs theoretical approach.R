@@ -6,7 +6,6 @@ library(ggplot2)    #For plotting
 library(e1071)      #For moment calculations
 library(Pareto)
 library(gridExtra)
-library(ggtexttable)
 #-----------------
 
 
@@ -58,7 +57,7 @@ density_plot <- ggplot(submodels_long, aes(x = X.axis, color = epsilon, fill = v
     legend.position = c(0.8, 0.8),
     legend.box = "horizontal"
   ) +
-  labs(title = "A single path formed from convex combinations of distributions",
+  labs(title = "(A) Single path from convex combinations of distributions",
        x = "Z",
        y = "Density") + xlim(c(0,3))
 
@@ -87,10 +86,14 @@ slope <- 3/10
 #Plotting 
 functional_plot <- ggplot(df_functionals, aes(x = epsilon, y = functionals)) +
   geom_line(linetype = "solid") + 
-  geom_segment(aes(x = 0, xend = 1, y = functionals[101] - slope, yend = functionals[101]), linetype = 'dashed') +
-  geom_text(aes(x = 0.1, y = 0.44, label = '1-step estimator')) +
-  geom_segment(aes(x = 0, xend = 0, y = functionals[1] - 1/20, yend = functionals[1]), linetype = 'dotted') +
+  geom_text(aes(x = 0.07, y = 0.5, label = 'true value')) +
+  geom_segment(x = 0, xend = 1, y = 0.75, yend = 0.75, linetype = 'dotted') + #Plug-in line
+  geom_text(aes(x = 0.07, y = 0.76, label = 'plug-in estimate')) +
+  geom_segment(aes(x = 0, xend = 1, y = functionals[101] - slope, yend = functionals[101]), linetype = 'dashed') + #One-step line
+  geom_text(aes(x = 0.07, y = 0.44, label = '1-step estimate')) +
+  geom_segment(aes(x = 0, xend = 0, y = functionals[1] - 1/20, yend = functionals[1]), linetype = 4) + #R2 term
   geom_text(aes(x = 0.023, y = 0.48, label = 'R2')) +
+  geom_point(x = 0, y = 0.5, size = 2.5) + geom_point(x = 0, y = 0.75, shape = 15, size = 2.5) + geom_point(x = 0, y = 0.45, shape = 17, size = 2.5) +
   theme_bw() +
   theme(
     panel.grid = element_blank(),
@@ -100,7 +103,7 @@ functional_plot <- ggplot(df_functionals, aes(x = epsilon, y = functionals)) +
     legend.position = c(0.8, 0.8),
     legend.box = "horizontal"
   ) +
-  labs(title = "Functional values along the path",
+  labs(title = "(B) Functional values along the path",
        x = "Epsilon",
        y = "Functional") + ylim(c(0.4,0.8))
 
