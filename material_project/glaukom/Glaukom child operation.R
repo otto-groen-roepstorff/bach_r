@@ -17,13 +17,17 @@ library(extrafont)
 ################################
 #   Reading and preparing data
 ################################
-df <- read_csv("~/Desktop/Studie/3/Bachelor/Data/Operation_hos_boern/data_til_sara.csv")
+df <- read_csv("material_legacy/glaukom/øjendata.csv") #setwd to dataset
 
 #Constructing global time, indicating time until event or censoring
 df$time=df$time_until_exam
 df$time=df$time+runif(length(df$time),-1,1)/10000 #Adding random noise not to have jumps at the same time
 df$time[!is.na(df$time_until_glau)]=df$time_until_glau[!is.na(df$time_until_glau)]
 df$status <- df$glau_eye_single == 1
+
+
+
+
 
 
 #Creating centered variables
@@ -33,10 +37,77 @@ df$young <- df$age_at_surg < 6*30
 
 
 ################################################################
-#             Cumulative baseline hazard
+#       Fitting Cox regression model on relevant covariates
 ################################################################
 
 fit_all <- coxph(Surv(time,status) ~ ster_regi + iol_single + age_at_surg + axis_lenght + num_re_op, data=df)
+summary(fit_all)
+
+
+
+################################################################
+#             Check proportional hazard assumption
+################################################################
+ster_regi_surv <- survfit(Surv(time, status) ~ ster_regi, data = df)
+
+
+#Kaplan Meier curve with ster_regi
+ggsurvplot(ster_regi_surv, linetype = 1, censor = F, size = 1,
+           pval = FALSE, conf.int = F,
+           palette = c("darkred", "darkblue"),
+           risk.table.col = "strata", # Change risk table color by groups
+           ggtheme = theme_risktable_boxed(), # Change ggplot2 theme
+           legend.labs = c("ster_regi = 0", "ster_regi = 1"),
+           font.x = c(14, "bold"),
+           font.y = c(14, "bold"),
+           font.tickslab = c(12, "plain"),
+           font.legend = c(16, "plain"),
+           xlim = c(0,3000),
+           xlab = "Time (days)",
+           ylim = c(0.8, 1),
+           legend = c(0.8,0.8))
+
+#We see that the survival of the high dose group seems to higher in the first 1500 days but afterwards the opposite seems to be the case
+#Note that the curves cross indicating a violation of the constant proportional hazards
+
+
+
+
+################################################################
+#       Lin et al. and Wei plot
+################################################################
+#Fits cox model unweighted
+
+set.seed(100)
+cox_model <- cox.aalen(Surv(time, glau_eye_single==1) ~ prop(ster_regi) + prop(age_at_surg_center) + prop(iol_single) + prop(axis_lenght_center) + prop(num_re_op), 
+                       data = df)
+summary(cox_model)
+par(mfrow=c(2,3))
+plot(cox_model,score=2,xlab="Time (days)", family = 'serif', cex.axis = 1.8, cex.lab = 1.5)
+
+
+#Fits cox model weighted
+cox_model_w <- cox.aalen(Surv(time, glau_eye_single==1) ~ prop(ster_regi) + prop(age_at_surg_center) + prop(iol_single) + prop(axis_lenght_center) + prop(num_re_op), 
+                         weighted.test = 1, data = df)
+summary(cox_model_w)
+par(mfrow=c(2,3))
+plot(cox_model_w,score=T,xlab="Time (days)")
+
+
+
+
+################################################################
+#                   End of analysis for project
+################################################################
+
+
+
+
+################################################################
+#                   Additional analysis
+################################################################
+
+
 fit_0 <- coxph(Surv(time, status) ~ 1, data = df)
 cumbasehaz_coxph <- basehaz(fit_all, center = FALSE)[,1]
 
@@ -277,182 +348,6 @@ par(mfrow=c(2,2))
 plot(iol_single_surv, fun = "cumhaz", col = c("steelblue", "red"), xlim = c(0,3000), xlab = 'Time', ylab = 'Cumulative hazard')
 legend("bottomright", legend = c("iol_single0", "iol_single1"), col = c("steelblue", "red"), lty=1)
 plot(fit_aalen_iol_single, xlim = c(0,3000))
-
-
-
-
-
-################################################################
-#       Lin et al. and Wei plot
-################################################################
-#Fits cox model unweighted
-
-set.seed(100)
-cox_model <- cox.aalen(Surv(time, glau_eye_single==1) ~ prop(ster_regi) + prop(age_at_surg_center) + prop(iol_single) + prop(axis_lenght_center) + prop(num_re_op), 
-                       data = df)
-summary(cox_model)
-par(mfrow=c(2,3))
-plot(cox_model,score=2,xlab="Time (days)", family = 'serif', cex.axis = 1.8, cex.lab = 1.5)
-
-
-#Fits cox model weighted
-cox_model_w <- cox.aalen(Surv(time, glau_eye_single==1) ~ prop(ster_regi) + prop(age_at_surg_center) + prop(iol_single) + prop(axis_lenght_center) + prop(num_re_op), 
-                       weighted.test = 1, data = df)
-summary(cox_model_w)
-par(mfrow=c(2,3))
-plot(cox_model_w,score=T,xlab="Time (days)")
-
-
-
-
-################################################################
-#                   End of current analysis
-################################################################
-
-
-
-
-
-
-#Fitting stratified focusing on ster_regi
-cox_strat_model <- cox.aalen(Surv(time, status) ~ -1 + ster_regi + prop(age_at_surg) + prop(iol_single) + prop(axis_lenght) + prop(num_re_op),
-                       data = df,
-                       max.time = 7,
-                       n.sim = 100)
-summary(cox_model)
-par(mfrow=c(1,2))
-plot(cox_model,score=1) 
-
-
-
-cox_model <- coxph(Surv(time, status) ~ -1 + ster_regi + prop(age_at_surg) + prop(iol_single) + prop(axis_lenght) + prop(num_re_op), data = df)
-plot(cox.aalen(cox_model, data = df), var = 'ster_regi')
-
-
-
-
-cox_strat_model_full <- cox.aalen(Surv(time, status) ~ -1 + ster_regi + prop(age_at_surg) + prop(iol_single) + prop(axis_lenght) + prop(num_re_op),
-                                  data = df, covariance = 1)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#Kaplan Meier without covariates
-
-fit.all = survfit(Surv(time, glau_eye_single==1) ~ 1, data=df)
-plot(fit.all, xlab="Time since operation", mark.time=F)
-
-
-#Kaplan Meier with ster_regi
-fit.sterregi = survfit(Surv(time, glau_eye_single==1) ~ ster_regi, data=df)
-
-plot(fit.sterregi, xlab="Time since operation", 
-     ylim=c(0,1), col=c("red", "green"), mark.time=F)
-legend(3500, 0.9, legend=c("ster_regi=0", "ster_regi=1"), text.col=c("red", "green"))
-
-
-#Kaplan Meier with iol_single
-fit.iol = survfit(Surv(time, glau_eye_single==1) ~ iol_single, data=df)
-
-plot(fit.iol, xlab="Time since operation", 
-     ylim=c(0,1), col=c("red", "green"), mark.time=F)
-legend(3500, 0.9, legend=c("iol=0", "iol=1"), text.col=c("red", "green"))
-
-
-
-
-
-#LOG RANK TEST
-survdiff(Surv(time, glau_eye_single==1) ~ ster_regi, data=df) #ikke signifikant
-#H0 (ingen forskel mellem ster_regi grupperne), accepteres (p-værdi på 0,6)
-
-survdiff(Surv(time, glau_eye_single==1) ~ iol_single, data=df) #signifikant
-
-survdiff(Surv(time, glau_eye_single==1) ~ axis_lenght, data=df)
-
-
-
-
-#COX
-cox.sterregi = coxph(Surv(time, glau_eye_single==1) ~ factor(ster_regi), data=df)
-
-summary(cox.sterregi) #effekten af ster_regi er ikke signifikant. exp(coef)=0,846, relative risk mellem ster_regi = 0 og 1
-
-table(df$ster_regi)
-
-
-#med iol_single (kunstig linse)
-cox.kunstig_linse = coxph(Surv(time, glau_eye_single==1) ~ factor(iol_single), data=df)
-
-summary(cox.kunstig_linse) #exp(coef)=0,12 - dem med ios=1 har meget lavere risiko for eventet end dem med ios=0. 
-#netop 0,12 gange mindre hazard risk.
-
-
-
-##FLERE COVARIATER
-cox.more = coxph(Surv(time, glau_eye_single==1) ~ factor(ster_regi)+factor(iol_single), data=df)
-summary(cox.more)
-#iol_single er signifikant, det er ster_regi ikke. exp(coef) for ster_regi er 0.6, den er 0,11 for ios_single
-
-
-cox.more = coxph(Surv(time, glau_eye_single==1) ~ factor(ster_regi)+factor(iol_single)+axis_lenght, data=df)
-summary(cox.more)
-
-cox.more = coxph(Surv(time, glau_eye_single==1) ~ factor(ster_regi)+factor(iol_single)+axis_lenght + age_at_surg, data=df)
-summary(cox.more)
-
-#med log af age
-cox.log_age = coxph(Surv(time, glau_eye_single==1) ~ log(age_at_surg), data=df)
-summary(cox.log_age)
-
-
-
-
-#Validation
-fit.cox = cox.aalen(Surv(time, glau_eye_single==1) ~ prop(factor(ster_regi))+prop(factor(iol_single)), data=df)
-summary(fit.cox)
-
-par(mfrow=c(2,2))
-plot(fit.cox, score=T, xlab="Time")
-
-#ser ikke så godt ud...
-
-##time-varying effects
-
-fit.aalen = aalen(Surv(time, glau_eye_single==1) ~ factor(ster_regi), data=df)
-summary(fit.aalen)
-
-par(mfrow=c(2,2))
-plot(fit.aalen)
-
-
-
-fit.aalen.iol = aalen(Surv(time, glau_eye_single==1) ~ factor(iol_single), data=df, max.time=3000)
-plot(fit.aalen.iol)
-
-
-
-
-
-
-
 
 
 
