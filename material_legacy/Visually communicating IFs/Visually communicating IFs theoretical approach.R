@@ -132,7 +132,7 @@ set.seed(1)
 sim_data <- seq(0,3,0.02)
 
 #Empirical distribution for plotting
-n <- c(10, 20, 40, 80, 160, 320)
+n <- c(10, 20, 40, 80, 160, 320)#, 640, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 100000, 200000, 400000, 1000000)
 
 cons_empd_dist <- list()
 for(i in 1:length(n)){
@@ -232,15 +232,16 @@ one_step_start <- one_step_end -slopes
 segment_data <- data.frame(
   slope = slopes,
   one_step_estimate = one_step_start,
-  naive_estimate = one_step_end,
+  plug_in_estimate = one_step_end,
   sample_size = factor(x = c(colnames(functionals[,-1])), levels = c(colnames(functionals[,-1])))
 )
 
-segment_data
+segment_data_long <- pivot_longer(segment_data, cols = c("one_step_estimate", "plug_in_estimate"), names_to = c("estimate_type"))
 
 #Plotting 
 functional_plot <- ggplot(df_functionals2, aes(x = epsilon, y = value)) +
-  geom_line(aes(color = sample_size)) +
+  geom_abline(intercept = 0.5, slope = 0, linetype = "dotdash")+
+  geom_line(aes(color = sample_size), size = 1) +
   theme_bw() +
   theme(
     panel.grid = element_blank(),
@@ -252,17 +253,43 @@ functional_plot <- ggplot(df_functionals2, aes(x = epsilon, y = value)) +
   ) +
   labs(title = "Functional values along the path",
        x = "Epsilon",
-       y = "Functional") + ylim(c(min(segment_data$one_step_estimate),max(segment_data$naive_estimate)))+
-  geom_segment(data = segment_data, aes(x = 0, xend = 1, y = one_step_start, yend = one_step_end, color = factor(sample_size)), linetype = "dotted", size = 1)
+       y = "Functional") + 
+  ylim(c(min(segment_data$one_step_estimate),max(segment_data$plug_in_estimate)))+
+  geom_segment(data = segment_data, aes(x = 0, xend = 1, y = one_step_start, yend = one_step_end, color = factor(sample_size)), linetype = "dashed", size = 1)+
+  geom_segment(data = segment_data, aes(x = 0, xend = 1, y = one_step_end, yend = one_step_end, color = factor(sample_size)), linetype = "dotted", linewidth  =1)+
+  geom_point(data = segment_data_long, aes(color = sample_size, shape = estimate_type, y = value), x = 0)+
+  scale_shape_manual(values = c(17, 15))
+
+functional_plot
 
 
+#abs(error_terms)<abs(one_step_end-0.5)
 
+bias_comparison <- ggplot() +
+  geom_line(data = segment_data, aes(x = n, y = abs(one_step_estimate - 0.5)), linetype = "dotted") +
+  geom_line(data = segment_data, aes(x = n, y = abs(plug_in_estimate - 0.5)), linetype = "dashed") +
+  ylim(c(0, max(segment_data$plug_in_estimate) - 0.5)) +
+  labs(
+    title = "Absolute Bias Comparison",
+    y = "|Bias|"
+  ) +
+  annotate(geom = "text", y = 0.5, x = 60, label = "plug-in estimator")+
+  annotate(geom = "text", y = 0.2, x = 60, label = "one-step estimator")+
+  theme_bw()+
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    axis.line = element_line(color = "black"),
+    text=element_text(size=16,  family="serif"),
+    legend.position = c(0.25, 0.8),
+    legend.box = "horizontal"
+  )
+                       
+grid.arrange(functional_plot, bias_comparison, nrow = 2)
 
-
-abs(error_terms)<abs(one_step_end-0.5)
-
-grid.arrange(density_plot, functional_plot, ncol = 2)
-
+convergence_plot
+segment_data$plug_in_estimate
+segment_data$one_step_estimate
 
 #Saving plots
 wd <- getwd()
