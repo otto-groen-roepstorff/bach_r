@@ -10,7 +10,7 @@ library(gridExtra)
 
 
 ##################
-#Generating distributions for plotting
+#Generating distributions for plotting simple case ( n = 100 from later code)
 ##################
 #Set seed for reproducability
 set.seed(1)
@@ -107,7 +107,7 @@ functional_plot <- ggplot(df_functionals, aes(x = epsilon, y = functionals)) +
        x = "Epsilon",
        y = "Functional") + ylim(c(0.4,0.8))
 
-
+#window plot
 grid.arrange(density_plot, functional_plot, ncol = 2)
 
 
@@ -119,7 +119,7 @@ ggsave(paste0(save_wd,'/density_plot.png'), plot = density_plot, width = 6, heig
 ggsave(paste0(save_wd,'/functional_plot.png'), plot = functional_plot, width = 6, height = 4, dpi = 300)
 
 
-#Extension to multiple models
+#Extension to multiple models with n dependency-----------------
 #Consistent models
 
 ##################
@@ -131,11 +131,11 @@ set.seed(1)
 #Simulate observations for the empirical distribution for plotting
 sim_data <- seq(0,3,0.02)
 
-#Empirical distribution for plotting
+#Empirical distribution for plotting with different n
 n <- c(10, 20, 40, 80, 160, 320)#, 640, 1000, 2000, 4000, 8000, 16000, 32000, 64000, 100000, 200000, 400000, 1000000)
 
-cons_empd_dist <- list()
-for(i in 1:length(n)){
+cons_empd_dist <- list() #create list for densities for the different n values
+for(i in 1:length(n)){ 
   emp_dist_i <- list(dexp(sim_data, 1 + 5/sqrt(n[i])))
   cons_empd_dist <- c(cons_empd_dist, emp_dist_i )
 }
@@ -145,7 +145,7 @@ theo_dist <- dexp(sim_data, 1)
 
 
 #Mixture distribution
-epsilon <- seq(0,1,1/5)
+epsilon <- seq(0,1,1/5) 
 epsilon_dist <- list()
 for (i in 1:length(n)) {
   epsilon_dist[[i]] <- lapply(epsilon, function(w) {
@@ -188,17 +188,17 @@ density_plot <- ggplot(submodels_long, aes(x = X.axis, color = epsilon, fill = v
        y = "Density") + xlim(c(0,3))+
   facet_wrap(.~n  )
 
-density_plot
 
-fp_pure <- function(n){
+#The product densities
+fp_pure <- function(n){ #product of two f_n
   return((1+5/sqrt(n))/2)
 }
 
-fp_mix <- function(n){
+fp_mix <- function(n){ #proudct of f_n and f
   (1+5/sqrt(n))/(2+5/sqrt(n))
 }
 
-fp_true <- function(n){
+fp_true <- function(n){ #product of two f
   return(1/2)
 }
 
@@ -208,7 +208,7 @@ exp_dens <- function(x,n){
 }
 
 
-#Defining epsilon values for which to calculate the functional and calculating the functionals
+#Defining epsilon grid for which to calculate the functional and calculating the functionals
 epsilon <- seq(0,1,1/100)
 functionals <- data.frame(epsilon = epsilon)
 for(i in n){
@@ -219,7 +219,7 @@ for(i in n){
 
 #Collectiong functionals and epsilons into dataframe for plotting
 df_functionals2 <- pivot_longer(functionals, !epsilon, names_to = c("sample_size"))
-
+#finding slopes
 slopes <- 2*fp_pure(n)-2*fp_mix(n)
 
 
@@ -228,7 +228,7 @@ error_terms <- 2*fp_mix(n)-fp_pure(n)-fp_true(n)
 one_step_end <- as.vector(t(functionals[nrow(functionals),-1]))
 one_step_start <- one_step_end -slopes
 
-
+#slope data
 segment_data <- data.frame(
   slope = slopes,
   one_step_estimate = one_step_start,
@@ -264,7 +264,7 @@ functional_plot
 
 
 #abs(error_terms)<abs(one_step_end-0.5)
-
+#bias comparison plot
 bias_comparison <- ggplot() +
   geom_line(data = segment_data, aes(x = n, y = abs(one_step_estimate - 0.5)), linetype = "dotted") +
   geom_line(data = segment_data, aes(x = n, y = abs(plug_in_estimate - 0.5)), linetype = "dashed") +

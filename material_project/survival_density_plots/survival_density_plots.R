@@ -7,7 +7,7 @@ generate_vis_data <- function(n, ba_t = 0, bz_c = 0, bx_c = 0,
   a <- rbinom(n = n, size = 1, 1/2)  
   x <- runif(n, min = min(x_range), max = max(x_range))
   z <- runif(n, 0,1)
-  
+  #generate survival and censoring times
   surv_t <-  rgamma(n = n, shape = 7.5, scale = 1)/((exp(ba_t*a)))
   cens_t <- rgamma(n, shape = 6, scale = 1)/exp(bz_c*z + bx_c*x)
   
@@ -21,9 +21,9 @@ generate_vis_data <- function(n, ba_t = 0, bz_c = 0, bx_c = 0,
 }
 
 
-data <- generate_vis_data(1000, ba_t = -log(2))
-df1 <- pivot_longer(data = data, cols = c("True_survival_times", "Censoring_times", "Observed_survival_times"), names_to = "Source", )
-df1$A <- as.factor(df1$A)
+data <- generate_vis_data(1000, ba_t = -log(2)) #Generate data
+df1 <- pivot_longer(data = data, cols = c("True_survival_times", "Censoring_times", "Observed_survival_times"), names_to = "Source", ) #cahnge data format
+df1$A <- as.factor(df1$A) #Make A into a factor 
 
 ggplot(df1, aes(x = value))+
   geom_density_pattern(aes(pattern = A),
@@ -38,4 +38,4 @@ ggplot(df1, aes(x = value))+
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
   )+labs(title = "Effect of censoring on observed survival times")
-1
+
