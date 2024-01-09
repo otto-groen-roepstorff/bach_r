@@ -1,10 +1,102 @@
-library(glmnet)
+study <- function(n){
+  
 
 n_sims <- 2000
-simulation <- matrix(data = NA, ncol = 5, nrow = n_sims)
+bias_matrix <- matrix(data = NA, ncol = 5, nrow = n_sims)
+variance_matrix <- matrix(data = NA, ncol = 4, nrow = n_sims)
+n <- 250
+
+for (j in 1:n_sims){
+  X <- rnorm(n, 2, 1)
+  Z <- runif(n, 0, 10)
+  A <- rbernoulli(n, 0.5)
+  error <- rnorm(n,0,1)
+  Y <- X + Z + 4*A + error
+  
+  data <- data.frame('Y' = Y, 'X' = X, 'Z' = Z, 'A' = A)
+  data1 <- data %>% mutate(A = TRUE)
+  data0 <- data %>% mutate(A = FALSE)
+  
+  linmod <- lm(Y ~ X + Z + A)
+  linmod_mis <- lm(Y ~ A)
+  logmod <- glm(A ~ X, family = binomial(link = "logit"))
+  
+  mu_pred1 <- predict(linmod, newdata = data1)
+  mu_mis1  <- predict(linmod_mis, newdata = data1)
+  
+  mu_pred0 <- predict(linmod, newdata = data0)
+  mu_mis0  <- predict(linmod_mis, newdata = data0)
+  
+  
+  pi_pred <- 0.5
+  pi_mis <- runif(n, min = 0.5, max = 1)
+  
+  
+  PI      <-   (mu_pred1) - (mu_pred0)
+  OSBC    <-   (mu_pred1 + A*(Y - mu_pred1)/pi_pred) - (mu_pred0 + (1-A)*(Y - mu_pred0)/pi_pred)
+  OSORC   <-   (mu_pred1 + A*(Y - mu_pred1)/pi_mis) - (mu_pred0 + (1-A)*(Y - mu_pred0)/pi_mis)
+  OSPSC   <-   (mu_mis0 + A*(Y - mu_mis0)/pi_pred) - (mu_mis0 + (1-A)*(Y - mu_mis0)/pi_pred)
+  OSBM    <-   (mu_mis0 + A*(Y - mu_mis0)/pi_mis) - (mu_mis0 + (1-A)*(Y - mu_mis0)/pi_mis)
+  
+  bias_matrix[j,1] <- 4 - mean(PI)
+  bias_matrix[j,2] <- 4 - mean(OSBC)
+  bias_matrix[j,3] <- 4 - mean(OSORC)
+  bias_matrix[j,4] <- 4 - mean(OSPSC)
+  bias_matrix[j,5] <- 4 - mean(OSBM)
+  
+  variance_matrix[j,1] <- var(PI)/n
+  variance_matrix[j,2] <- var(OSBC)/n
+  variance_matrix[j,3] <- var(OSORC)/n
+  variance_matrix[j,4] <- var(OSPSC)/n
+  
+}
+
+print(paste0('Rep done'))
+
+res <- c(mean(bias_matrix[,1]),
+mean(bias_matrix[,2]),
+mean(bias_matrix[,3]),
+mean(bias_matrix[,4]),
+mean(bias_matrix[,5]),
+mean(variance_matrix[,1]),
+mean(variance_matrix[,2]),
+mean(variance_matrix[,3]),
+mean(variance_matrix[,4]))
+
+res
+
+return(res)
+}
+
+start.time <- Sys.time()
+res_mat <- replicate(10, study(750))
+end.time <- Sys.time()
+end.time - start.time
+
+rowMeans(res_mat)
+
+n_values <-  c(50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550,600,650,700,750,800)#, 550, 600, 650, 700, 750, 800, 850, 900, 950, 1000)
+naive <- c(0.0007930403, 0.0015047701, 4.517098e-04, -0.0015145163,-0.0008777945,0.001526063,6.937667e-05,0.0004733887,-9.367444e-05, -0.0002194947,-1.022622e-03, -0.0005917625,-0.0003366505,0.0008501534,-0.0011277702,-0.0002793964)
+corr_spec <- c(0.0014774241, 0.0004019251, -1.953187e-04,0.0004132301,-0.0003717897,0.001536088,-7.491083e-04,0.0005794326,-1.607810e-04, 0.0008042253,-4.945044e-04,-0.0004039174,-0.0008990002,0.0003285578,-0.0008653382,-0.0004615611)
+prop_mis <- c(0.0014782583, 0.0008389713, -2.714108e-05,-0.0003564385,-0.0005664192,0.001467138,-4.495766e-04,0.0004402678,-1.362549e-04, 0.0004801114,-6.531593e-04,-0.0004792809,-0.0007092008,0.0004491718,-0.0009286049,-0.0003474107)
+out_reg_mis <- c(0.0016502827, 0.0005901644, -1.232160e-03,0.0013494750,0.0017228906,0.002424493,9.366019e-04,-0.0001478099,-3.252017e-04, 0.0005379804,-4.367971e-05,-0.0008224084,-0.0006103255,-0.0004715913,-0.0006874180,0.0002840765)
+mis_spec <- c(0.9480778350, 0.9360966548, 9.290752e-01,0.9296889785,0.9298781253,0.928158347,9.262647e-01,0.9232334343,9.232450e-01, 0.9235616544,9.220874e-01,0.9219560024,0.9230613148,0.9216013841,0.9217658795,0.9240366387)
+
+
+plot(n_values, mis_spec, type = 'b', pch = 1, ylim = c(-0.01, 1))
+
+plot(n_values, naive, type = 'b', pch = 1, ylim = c(-0.006,0.006))
+points(n_values, corr_spec, type = 'b', pch = 2)
+points(n_values, prop_mis, type = 'b', pch = 3)
+points(n_values, out_reg_mis, type = 'b', pch = 4)
+abline(0,0)
+
+
+n_sims <- 2000
+simulation <- matrix(data = NA, ncol = 6, nrow = n_sims)
 ba_t <- -1
 tau <- 3
-n <- 50
+n <- 200
 
 start.time <- Sys.time()
 for (j in 1:n_sims){
@@ -160,7 +252,10 @@ for (j in 1:n_sims){
   
   p4 <- mean(p3)
   
-  EIF_var_est <- var(p1 + p2 + p3 - p4)/n
+  
+  NAIVE_var_est <- var(p3)/n
+  EIF_var_est <- var(p1 + p2 + p3)/n
+  
   
   
   simulation[j,1] <- mean(p1)
@@ -168,6 +263,7 @@ for (j in 1:n_sims){
   simulation[j,3] <- mean(p3)
   simulation[j,4] <- mean(p1 + p2 + p3)
   simulation[j,5] <- EIF_var_est
+  simulation[j,6] <- NAIVE_var_est
   print(paste0('Simulation ',j,' done'))
 }
 end.time <- Sys.time()
@@ -175,31 +271,31 @@ end.time - start.time
 mean(simulation[,3])
 mean(simulation[,4])
 mean(simulation[,5])
+mean(simulation[,6])
 
 
 #True value: 0.7215708370
 
-#             n     50          100             200             400           800             1600          3200
-#Naive estimate   0.6086665     0.6607547       0.68665         0.6959826     0.7094471       0.7177696     0.7191623
-#EIF estimate     0.6123555     0.6688572       0.6865309       0.6946947     0.7095038       0.7174959     0.7195862
-#EIF variance     0.01112825    0.005346707     0.003019546     0.001465691   0.0007382434    0.0003714565  0.0001866196
+#1.935071e-05
 
+#0.6078786 0.6123083
 
-x_axis <- 1:7
+x_axis <- c(50, 100, 200, 400, 800, 1600)#, 3200)
 naive_bias <- c(0.7215708370-0.6086665, 
                 0.7215708370-0.6607547, 
                 0.7215708370-0.68665, 
                 0.7215708370-0.6959826, 
                 0.7215708370-0.7094471, 
-                0.7215708370-0.7177696, 
-                0.7215708370-0.7191623)
+                0.7215708370-0.7177696)#, 
+                #0.7215708370-0.7191623)
 eif_bias <- c(0.7215708370-0.6123555,
               0.7215708370-0.6688572,
               0.7215708370-0.6865309,
               0.7215708370-0.6946947,
               0.7215708370-0.7095038,
-              0.7215708370-0.7174959,
-              0.7215708370-0.7195862)
+              0.7215708370-0.7174959)
+#,
+#              0.7215708370-0.7195862)
 eif_var <- c(0.01112825,
              0.005346707,
              0.003019546,
@@ -208,8 +304,8 @@ eif_var <- c(0.01112825,
              0.0003714565,
              0.0001866196)
 
-plot(x_axis, naive_bias, type = 'b', pch = 2)
-points(x_axis, eif_bias, type = 'b', pch = 5)
+plot(x_axis, log(naive_bias), type = 'b', pch = 2)
+points(x_axis, log(eif_bias), type = 'b', pch = 5)
 
 plot(x_axis, eif_var, type = 'b', pch = 2)
 
@@ -233,6 +329,12 @@ plot(x_axis, eif_var, type = 'b', pch = 2)
 #Correctly specified survival and misspecified censoring
 # 0.6960505 - 300, 0.7077723 - 600, 0.7137625 - 900, 0.7182949 - 2400 
 # 0.6944582 - 300, 0.7083863 - 600, 0.7135256 - 900, 0.7187663 - 2400
+
+
+#             n     50          100             200             400           800             1600          3200
+#Naive estimate   0.6086665     0.6607547       0.68665         0.6959826     0.7094471       0.7177696     0.7191623
+#EIF estimate     0.6123555     0.6688572       0.6865309       0.6946947     0.7095038       0.7174959     0.7195862
+#EIF variance     0.01112825    0.005346707     0.003019546     0.001465691   0.0007382434    0.0003714565  0.0001866196
 
 
 
@@ -277,7 +379,7 @@ for (j in 1:n_sims){
   #                                           ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:1000000))
   
   
-  model_surv <- non_oracle_model(data)
+  model_surv <- oracle_model(data)
   model_cens <- oracle_cens_model(data)
   
   covar_true <- get_n_oracle_covar(data)
@@ -479,35 +581,23 @@ for (j in 1:n_sims){
   
   ######################################################
   fit_coxph_full_data     <- coxph(Surv(T_true, status) ~ A + X + Z, data = data)
-  fit_coxph_full_data_mis <- coxph(Surv(T_true, status) ~ A + fake_1 + fake_2 + fake_3, data = data)
+  fit_coxph_full_data_mis <- lm(T_true ~ A + X + Z - 1, data = data)
   ######################################################
   
   ######################################################
-  survfit <- survfit(fit_coxph_full_data, newdata = data)
-  survfit_0 <- survfit(fit_coxph_full_data, newdata = data_A0)
-  survfit_1 <- survfit(fit_coxph_full_data, newdata = data_A1)
+  surv_fit   <- survfit(fit_coxph_full_data, newdata = data)
+  surv_fit_0 <- survfit(fit_coxph_full_data, newdata = data_A0)
+  surv_fit_1 <- survfit(fit_coxph_full_data, newdata = data_A1)
   
-  cum_haz   <- t(survfit$cumhaz)
-  cum_haz_0 <- t(survfit_0$cumhaz)
-  cum_haz_1 <- t(survfit_1$cumhaz)
-  
-  surv    <- t(survfit$surv)
-  surv_0  <- t(survfit_0$surv)
-  surv_1  <- t(survfit_1$surv)
+  surv    <- t(surv_fit$surv)
+  surv_0  <- t(surv_fit_0$surv)
+  surv_1  <- t(surv_fit_1$surv)
   ######################################################
   
   ######################################################
-  survfit_mis   <- survfit(fit_coxph_full_data_mis, newdata = data)
-  survfit_0_mis <- survfit(fit_coxph_full_data_mis, newdata = data_A0)
-  survfit_1_mis <- survfit(fit_coxph_full_data_mis, newdata = data_A1)
-  
-  cum_haz_mis   <- t(survfit_mis$cumhaz)
-  cum_haz_0_mis <- t(survfit_0_mis$cumhaz)
-  cum_haz_1_mis <- t(survfit_1_mis$cumhaz)
-  
-  surv_mis    <- t(survfit_mis$surv)
-  surv_0_mis  <- t(survfit_0_mis$surv)
-  surv_1_mis  <- t(survfit_1_mis$surv)
+  surv_mis    <- predict(fit_coxph_full_data_mis, newdata = data)
+  surv_0_mis  <- predict(fit_coxph_full_data_mis, newdata = data_A0)
+  surv_1_mis  <- predict(fit_coxph_full_data_mis, newdata = data_A1)
   ######################################################
   
   ######################################################
@@ -617,7 +707,7 @@ lines(truth$taus, truth$true_vals)
 n_sims <- 1000
 ba_t <- -1
 tau <- 3
-n <- 600
+n <- 300
 OSEC_lst      <- list()
 OSEM_lst      <- list()
 OSEBM_lst     <- list()
@@ -631,6 +721,7 @@ for (j in 1:n_sims){
   data_cens <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
                                       ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
   
+  data_0 <- data %>% mutate(A = 0, X = 0, Z = 0)
   data_A0 <- data %>% mutate(A = 0)
   data_A1 <- data %>% mutate(A = 1)
   
@@ -641,8 +732,8 @@ for (j in 1:n_sims){
   fit_coxph <- coxph(Surv(T_obs, Uncensored) ~ A + X + Z, data = data)
   fit_coxph_mis <- coxph(Surv(T_obs, Uncensored) ~ A + fake_1 + fake_2 + fake_3, data = data)
   
-  cum_base_haz <- basehaz(fit_coxph, newdata = data)
-  cum_base_haz_mis <- basehaz(fit_coxph_mis, newdata = data)
+  cum_base_haz <- basehaz(fit_coxph, newdata = data_0)
+  cum_base_haz_mis <- basehaz(fit_coxph_mis, newdata = data_0)
   
   survfit_all <- survfit(fit_coxph, newdata = data)
   survfit_all_mis <- survfit(fit_coxph_mis, newdata = data)
@@ -912,6 +1003,127 @@ for (i in 2:length(NAIVE_MIS_lst)){
 }
 lines(truth$taus, truth$true_vals)
 
+
+
+
+
+#OUR EIF WITH COXPH
+n_sims <- 1000
+ba_t <- -1
+tau <- 3
+n <- 900
+
+
+#Data generation
+data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+                               ba_c = 1, bx_c = log(2), bz_c = log(2), seed = sample(1:100000))
+
+data_0 <- data %>% mutate(A = 0, X = 0, Z = 0)
+data_A0 <- data %>% mutate(A = 0)
+data_A1 <- data %>% mutate(A = 1)
+
+
+################################################################
+#                     Fitting models
+################################################################
+fit_coxph <- coxph(Surv(T_obs, Uncensored) ~ A + X + Z, data = data)
+
+cum_base_haz <- t(basehaz(fit_coxph, newdata = data_0))[-nrow(data) - 1,]
+
+
+
+
+################################################################
+#           Survival functions and cumulative hazards
+################################################################
+survfit     <-  survfit(fit_coxph, newdata = data)
+survfit_0   <-  survfit(fit_coxph, newdata = data_A0)
+survfit_1   <-  survfit(fit_coxph, newdata = data_A1)
+
+surv        <- t(survfit$surv)
+surv_0      <- t(survfit_0$surv)
+surv_1      <- t(survfit_1$surv)
+
+cum_haz     <- t(survfit$cumhaz)
+cum_haz_0   <- t(survfit_0$cumhaz)
+cum_haz_1   <- t(survfit_1$cumhaz)
+
+
+#plot(survfit_0$time, surv_0[1,], type = 'l', col = 'red')
+#for (i in 2:length(survfit_0$time)){
+#  lines(survfit_0$time, surv_0[i,], col = 'red')
+#  lines(survfit_1$time, surv_1[i,], col = 'blue')
+#}
+
+################################################################
+#                     Martingale errors
+################################################################
+
+#Note these martingales are aggregated across all individuals
+dM <- fit_coxph$residuals
+
+#----------------Manual calculations--------------
+#dL <- cbind(0, cum_haz[,-1] - cum_haz[,-ncol(cum_haz)])
+#
+#dN <- outer(data$T_obs, survfit$time, '==') * data$Uncensored
+#
+#at_risk <- outer(data$T_obs, survfit$time, '>=')
+#dM_manual <- t(dN - dL*at_risk)
+#
+#plot(survfit$time, cumsum(colSums(dN)), type = 'l')
+#lines(survfit$time, cumsum(colSums(at_risk*dL)))
+#
+#plot(survfit$time, cumsum(dM), type = 'l')
+#lines(survfit$time, cumsum(colSums(dM_manual)))
+
+
+################################################################
+#                     Censoring distribution
+################################################################
+fit_coxph_cens <- coxph(Surv(T_obs, Uncensored == F) ~ A + X + Z, data = data_cens)
+censfit <- survfit(fit_coxph_cens, newdata = data)
+cens <- t(censfit$surv)
+
+
+
+
+################################################################
+#                           EIF
+################################################################
+time_indicator <- survfit_all$time <= tau
+jump_times_kept <- survfit_all$time[time_indicator]
+
+
+multiplier <- exp(fit_coxph$coefficients %*% t(cbind(data$A, data$X, data$Z)))
+
+dH0 <- cbind(0, cum_base_haz[,-1] - cum_base_haz[,-ncol(cum_base_haz)])
+dH0_tau <- dH0[,time_indicator]
+
+surv_tau    <-  surv[,time_indicator]
+surv_0_tau  <-  surv_0[,time_indicator] 
+surv_1_tau  <-  surv_1[,time_indicator]
+
+Khat_cens_tau <- t(cens)[,time_indicator]
+
+dM_tau        <- dM[time_indicator]
+dM_manual_tau <- dM_manual[, time_indicator]
+
+
+props <- propensity(data, glm = T)
+pi_0 <- props$propens$pi_a_0
+pi_1 <- props$propens$pi_a_1
+
+
+#Naive estimate
+mean(multiplier * rowSums(surv_0_tau*surv_1_tau*dH0_tau))
+
+#One-step estimator
+
+
+
+#Correctly specified
+inner_integrand <- dM_manual_tau/(surv_tau*Khat_cens_tau)
+inner_integral <- t(apply(inner_integrand, MARGIN = 1, FUN = cumsum))
 
 
 
