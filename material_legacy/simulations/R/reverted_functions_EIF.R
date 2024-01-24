@@ -197,7 +197,7 @@ propensity <- function(data, glm = T){
   } else {
     
   #probabilities
-  p_a_1 <- runif(n = nrow(data), min = 1/4, max = 3/4)
+  p_a_1 <- 0.75
   
   }
   

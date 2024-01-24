@@ -74,7 +74,7 @@ study <- function(n){
     
     
     proppred <- propreg$fitted.values
-    propmis  <- runif(n, 0.75, 1)
+    propmis  <- runif(n, 0.75, 0.85)
     
     
     PI      <-   (outpred) 
@@ -176,15 +176,14 @@ legend("topright",
 
 
 
+
+
+
+
+
 ##################################################
 #             EIF Simulation Study               #
 ##################################################
-
-n_sims <- 2000
-simulation <- matrix(data = NA, ncol = 4, nrow = n_sims)
-ba_t <- -1
-tau <- 3
-n <- 250
 
 EIF_sim_func <- function(n, n_sims, tau, ba_t, S_true = T, K_true = T, prop_true = T, true_val){
   start.time <- Sys.time()
@@ -194,56 +193,56 @@ EIF_sim_func <- function(n, n_sims, tau, ba_t, S_true = T, K_true = T, prop_true
   NAIVE_coverage <- 0
   
   for (j in 1:n_sims){
-    ###################################################
-    #           Naive estimate
-    ##################################################
-    data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
-                                   ba_c = 1, bx_c = log(2), bz_c = log(2), prop_a = 1/2, seed = sample(1:100000))
-    
-    #Model
-    if (S_true == T){
-      model_surv <- oracle_model(data)
-      covar_true <- get_oracle_covar(data)
-    } else {
-      model_surv <- non_oracle_model(data)
-      covar_true <- get_n_oracle_covar(data)
-    }
-    
-    cum_matrix_obs <- get_cum(model_surv)
-    jump_times_obs <- get_jump_times(cum_matrix_obs)
-    cum_bas_haz_obs <- get_cum_base_haz(cum_matrix_obs)
-    no_jumps_obs <- get_row_length(cum_matrix_obs)
-    beta_hat_obs <- get_param_est(model_surv)
-    
-    covar_A0 <- covar_true %>% mutate(A = 0)
-    covar_A1 <- covar_true %>% mutate(A = 1)
-    
-    #Cum haz obs
-    cum_hat_obs <- predict_cox.aalen(covar = covar_true, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
-    cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
-    cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
-    
-    #Survival functions
-    S_hat_obs <- exp(-cum_hat_obs)
-    S_hat0_obs <- exp(-cum_hat0_obs)
-    S_hat1_obs <- exp(-cum_hat1_obs)
-    
-    no_times_to_keep <- sum(jump_times_obs <= tau)
-    d_cum_base_haz <- c(0, cum_bas_haz_obs[-1]-cum_bas_haz_obs[-no_jumps_obs])
-    d_cum_base_haz_tau <- c(0, cum_bas_haz_obs[-1]-cum_bas_haz_obs[-no_jumps_obs])[1:no_times_to_keep]
-    
-    S_hat0_obs_tau <- S_hat0_obs[,1:no_times_to_keep]
-    S_hat1_obs_tau <- S_hat1_obs[,1:no_times_to_keep]
-    
-    outer_integrand <- t(t(S_hat0_obs_tau * S_hat1_obs_tau) * d_cum_base_haz_tau)
-    exp_0_multiplier <- exp(data.matrix(covar_A0) %*% beta_hat_obs)
-    
-    #Part 3 (naive estimate)
-    p3_temp <- exp_0_multiplier * rowSums(outer_integrand)
-    p4      <- mean(p3_temp)
-    
-    ##################################################
-    
+    # ###################################################
+    # #           Naive estimate
+    # ##################################################
+    # data <- generate_survival_data(n, ba_t = ba_t, bx_t = log(2), bz_t = log(2),
+    #                                ba_c = 1, bx_c = log(2), bz_c = log(2), prop_a = 1/2, seed = sample(1:100000))
+    # 
+    # #Model
+    # if (S_true == T){
+    #   model_surv <- oracle_model(data)
+    #   covar_true <- get_oracle_covar(data)
+    # } else {
+    #   model_surv <- non_oracle_model(data)
+    #   covar_true <- get_n_oracle_covar(data)
+    # }
+    # 
+    # cum_matrix_obs <- get_cum(model_surv)
+    # jump_times_obs <- get_jump_times(cum_matrix_obs)
+    # cum_bas_haz_obs <- get_cum_base_haz(cum_matrix_obs)
+    # no_jumps_obs <- get_row_length(cum_matrix_obs)
+    # beta_hat_obs <- get_param_est(model_surv)
+    # 
+    # covar_A0 <- covar_true %>% mutate(A = 0)
+    # covar_A1 <- covar_true %>% mutate(A = 1)
+    # 
+    # #Cum haz obs
+    # cum_hat_obs <- predict_cox.aalen(covar = covar_true, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
+    # cum_hat0_obs <- predict_cox.aalen(covar = covar_A0, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
+    # cum_hat1_obs <- predict_cox.aalen(covar = covar_A1, betaHat = beta_hat_obs, cum_base_haz = cum_bas_haz_obs)
+    # 
+    # #Survival functions
+    # S_hat_obs <- exp(-cum_hat_obs)
+    # S_hat0_obs <- exp(-cum_hat0_obs)
+    # S_hat1_obs <- exp(-cum_hat1_obs)
+    # 
+    # no_times_to_keep <- sum(jump_times_obs <= tau)
+    # d_cum_base_haz <- c(0, cum_bas_haz_obs[-1]-cum_bas_haz_obs[-no_jumps_obs])
+    # d_cum_base_haz_tau <- c(0, cum_bas_haz_obs[-1]-cum_bas_haz_obs[-no_jumps_obs])[1:no_times_to_keep]
+    # 
+    # S_hat0_obs_tau <- S_hat0_obs[,1:no_times_to_keep]
+    # S_hat1_obs_tau <- S_hat1_obs[,1:no_times_to_keep]
+    # 
+    # outer_integrand <- t(t(S_hat0_obs_tau * S_hat1_obs_tau) * d_cum_base_haz_tau)
+    # exp_0_multiplier <- exp(data.matrix(covar_A0) %*% beta_hat_obs)
+    # 
+    # #Part 3 (naive estimate)
+    # p3_temp <- exp_0_multiplier * rowSums(outer_integrand)
+    # p4      <- mean(p3_temp)
+    # 
+    # ##################################################
+    # 
     
     
     
@@ -417,11 +416,11 @@ EIF_sim_func <- function(n, n_sims, tau, ba_t, S_true = T, K_true = T, prop_true
     
     
     
-    EIF_mean <- p4 + mean(p1 + p3 - p4 + p2)
-    EIF_var_est <- mean((p1 + p3 - mean(p4) + p2)^2)/n
+    EIF_mean <- mean(p1 + p2 + p3)
+    EIF_var_est <- mean((p1 + p3 - mean(p3) + p2)^2)/n
 #    EIF_coverage <- EIF_coverage + (EIF_mean - 1.96*sqrt(EIF_var_est) < true_val & true_val < EIF_mean + 1.96*sqrt(EIF_var_est))
     
-    NAIVE_mean <- mean(rbind(p3,p3_temp))
+    NAIVE_mean <- mean(p3)
 #    NAIVE_var_est <- var(rbind(p3,p3_temp))
 #    NAIVE_coverage <- NAIVE_coverage + (NAIVE_mean - 1.96*sqrt(NAIVE_var_est) < true_val & true_val < NAIVE_mean + 1.96*sqrt(NAIVE_var_est))
     
@@ -440,24 +439,98 @@ EIF_sim_func <- function(n, n_sims, tau, ba_t, S_true = T, K_true = T, prop_true
   
   return(c(true_val - mean(simulation[,1]), true_val - mean(simulation[,2]), mean(simulation[,3]), var(simulation[,2])))#, EIF_coverage/n_sims, NAIVE_coverage/n_sims))
 }
+set.seed(100)
 
-res300 <- EIF_sim_func(n = 300, 
-                    n_sims = 2000, 
-                    tau = 3, 
-                    ba_t = -1, 
-                    S_true = T, 
-                    K_true = T, 
-                    prop_true = T,
-                    true_val = 0.7215708370)
 
-res600 <- EIF_sim_func(n = 600, 
-                       n_sims = 2000, 
-                       tau = 3, 
-                       ba_t = -1, 
-                       S_true = T, 
-                       K_true = T, 
-                       prop_true = T,
-                       true_val = 0.7215708370)
+n_vector <- c(300, 600, 900, 1200, 1500)
+res300BC
+res600BC
+res900BC
+res1200BC
+res1500BC
+
+resBC <- rbind(res300BC,
+      res600BC,
+      res900BC,
+      res1200BC,
+      res1500BC)
+
+
+summary_data_frame <- data.frame()
+#summary_vector <- c()
+set.seed(100)
+for (i in seq(300,1500,300)){
+  set.seed(100)
+  res_mat <- EIF_sim_func(n = i, 
+                          n_sims = 2000, 
+                          tau = 3, 
+                          ba_t = -1, 
+                          S_true = T, 
+                          K_true = T, 
+                          prop_true = F,
+                          true_val = 0.7215708370)
+  
+  summary_data_frame <- rbind(summary_data_frame, c(i,res_mat))
+}
+
+summary_data_frame
+
+names(resPF) <- c('n', 'BiasOS', 'BiasPI', 'VarOS', 'VarPI')
+
+
+resCF_backup 
+resPF_backup 
+resSF_backup
+
+resPF_backup <- resPF
+
+plot(resBC$n, resBC$BiasPI, type = 'b', pch = 1, main = 'Bias',
+     xlab = 'n', ylab = 'Bias', ylim = c(-0.05,0.025))
+lines(resBC$n, resBC$BiasOS, type = 'b', pch = 2)
+lines(resBC$n, resPF$BiasOS, type = 'b', pch = 3)
+lines(resCF$n, resCF$BiasOS, type = 'b', pch = 4)
+lines(resSF$n, resSF$BiasOS, type = 'b', pch = 5)
+abline(0,0, lty = 'dashed')
+
+legend(1200, 0.025, 
+       legend = c("PI estimate", 
+                  "OS estimate", 
+                  "Propensity misspecified",
+                  "Censoring misspecified",
+                  'Survival misspecified'), 
+       pch = c(1, 2, 3, 4, 5),
+       bty = "n", cex = 1.2)
+
+
+
+plot(resBC$n, resBC$VarPI, type = 'b', pch = 1, main = 'Variance',
+     xlab = 'n', ylab = 'Variance', ylim = c(0,0.005))
+lines(resBC$n, resBC$VarOS, type = 'b', pch = 2)
+lines(resBC$n, resPF$VarOS, type = 'b', pch = 3)
+lines(resCF$n, resCF$VarOS, type = 'b', pch = 4)
+lines(resSF$n, resSF$VarOS, type = 'b', pch = 5)
+abline(0,0, lty = 'dashed')
+
+legend(1200, 0.005, 
+       legend = c("PI estimate", 
+                  "OS estimate", 
+                  "Propensity misspecified",
+                  "Censoring misspecified",
+                  'Survival misspecified'), 
+       pch = c(1, 2, 3, 4, 5),
+       bty = "n", cex = 1.2)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
